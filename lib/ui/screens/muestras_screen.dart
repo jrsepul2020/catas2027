@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../../data/models.dart';
+import '../theme.dart';
 import '../widgets.dart';
 
 class MuestrasScreen extends ConsumerStatefulWidget {
@@ -71,7 +72,6 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
             ),
           ),
           Expanded(
-            // Rejilla compacta: el máximo de muestras por pantalla.
             child: GridView.builder(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
@@ -150,17 +150,32 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
 }
 
 Future<void> editarMuestra(BuildContext context, WidgetRef ref, Muestra? m) async {
+  if (m == null) {
+    await _altaMuestra(context, ref);
+    return;
+  }
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    constraints: const BoxConstraints(maxWidth: 720),
+    builder: (s) => _HojaMuestra(muestraId: m.id),
+  );
+}
+
+Future<void> _altaMuestra(BuildContext context, WidgetRef ref) async {
   final repo = ref.read(repoProvider)!;
   final cats = ref.read(categoriasProvider);
-  final codigo = TextEditingController(text: m?.codigo ?? '');
-  final texto = TextEditingController(text: m?.codigoTexto ?? '');
-  int? categoria = m?.categoriaId ?? (cats.isNotEmpty ? cats.first.id : null);
-  var activa = m?.activa ?? true;
+  final codigo = TextEditingController();
+  final texto = TextEditingController();
+  int? categoria = cats.isNotEmpty ? cats.first.id : null;
+  var activa = true;
   await hojaFormulario(
     context,
-    titulo: m == null ? 'Nueva muestra' : 'Muestra ${m.codigo}',
+    titulo: 'Nueva muestra',
     campos: [
-      Campo(codigo, 'Código ciego (1–9999)', numero: true, autofocus: m == null),
+      Campo(codigo, 'Código ciego (1–9999)', numero: true, autofocus: true),
       Campo(texto, 'Código de texto / referencia'),
       StatefulBuilder(
         builder: (c, set) => Column(
@@ -184,17 +199,261 @@ Future<void> editarMuestra(BuildContext context, WidgetRef ref, Muestra? m) asyn
         ),
       ),
     ],
-    borrar: m == null ? null : () => repo.borrar('muestras', m.id),
     guardar: () async {
-      final d = {
+      await repo.insertar('muestras', {
         'codigo_ciego': codigo.text.trim(),
         'codigo_texto': texto.text.trim().isEmpty ? codigo.text.trim() : texto.text.trim(),
         'categoria_id': categoria,
         'activo': activa,
-      };
-      m == null
-          ? await repo.insertar('muestras', {...d, 'concurso_id': ref.read(concursoIdProvider)})
-          : await repo.actualizar('muestras', m.id, d);
+        'concurso_id': ref.read(concursoIdProvider),
+      });
     },
   );
+}
+
+/// Modal de muestra existente: código grande, estado, notas y acciones de tanda.
+class _HojaMuestra extends ConsumerStatefulWidget {
+  const _HojaMuestra({required this.muestraId});
+  final int muestraId;
+  @override
+  ConsumerState<_HojaMuestra> createState() => _HojaMuestraState();
+}
+
+class _HojaMuestraState extends ConsumerState<_HojaMuestra> {
+  late final TextEditingController _texto;
+  late int? _categoria;
+  late bool _activa;
+  var _iniciado = false;
+
+  @override
+  void dispose() {
+    if (_iniciado) _texto.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = ref.watch(muestraPorIdProvider)[widget.muestraId];
+    if (m == null) {
+      return const Padding(padding: EdgeInsets.all(24), child: Text('Muestra no encontrada'));
+    }
+    if (!_iniciado) {
+      _texto = TextEditingController(text: m.codigoTexto ?? '');
+      _categoria = m.categoriaId;
+      _activa = m.activa;
+      _iniciado = true;
+    }
+    final repo = ref.read(repoProvider)!;
+    final cats = ref.watch(categoriasProvider);
+    final tm = ref.watch(tandaMuestrasProvider).where((x) => x.muestraId == m.id).firstOrNull;
+    final tanda = tm == null ? null : ref.watch(tandaPorIdProvider)[tm.tandaId];
+    final mesa = tanda == null ? null : ref.watch(mesaPorIdProvider)[tanda.mesaId];
+    final notas = ref.watch(puntuacionesProvider).where((p) => p.muestraId == m.id).toList()
+      ..sort((a, b) => a.catadorId.compareTo(b.catadorId));
+    final catadores = ref.watch(catadorPorIdProvider);
+    final k = esCompacto(context);
+    final info = tm == null ? null : infoTM(tm.estado);
+    final conTotal = notas.where((n) => n.total != null).toList();
+    final mediaFinal = conTotal.isEmpty
+        ? null
+        : conTotal.map((n) => n.total!).reduce((a, b) => a + b) / conTotal.length;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              m.codigo,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: k ? 42 : 52,
+                fontWeight: FontWeight.w900,
+                height: 1.05,
+                color: Paleta.azulOscuro,
+              ),
+            ),
+            if (m.codigoTexto != null && m.codigoTexto != m.codigo)
+              Text(
+                m.codigoTexto!,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: k ? 16 : 18, fontWeight: FontWeight.w600),
+              ),
+            const SizedBox(height: 10),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (info != null) EtiquetaEstado(info),
+                if (tanda != null)
+                  Text(
+                    [mesa?.nombre, tanda.nombre].whereType<String>().join(' · '),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  )
+                else
+                  const Text('Sin tanda', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                if (mediaFinal != null)
+                  Text(
+                    'Media ${mediaFinal.toStringAsFixed(1).replaceAll('.', ',')}',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Paleta.azulOscuro),
+                  ),
+              ],
+            ),
+            if (notas.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Puntuaciones',
+                style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final n in notas)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: (estadosNota[n.estado]?.$3 ?? Colors.blue).shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'P${catadores[n.catadorId]?.puesto ?? '–'} '
+                        '${n.total?.toStringAsFixed(n.total == n.total!.roundToDouble() ? 0 : 1).replaceAll('.', ',') ?? '–'}'
+                        ' · ${estadosNota[n.estado]?.$1 ?? n.estado}',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            if (tm != null) ...[
+              const SizedBox(height: 14),
+              Text(
+                'Acciones de cata',
+                style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              if (tm.estado != 'activa')
+                AccionHoja(
+                  icono: Icons.play_circle_fill,
+                  color: Paleta.amarillo,
+                  titulo: 'Abrir para cata',
+                  subtitulo: 'La pone como ACTIVA (la ven las tablets)',
+                  onTap: () async {
+                    final ok = await ejecutar(context, () => repo.activarMuestra(tm.id), ok: '${m.codigo} activa');
+                    if (ok && context.mounted) Navigator.pop(context);
+                  },
+                ),
+              AccionHoja(
+                icono: Icons.replay,
+                color: Paleta.lila,
+                titulo: 'Recatar desde cero',
+                subtitulo: 'Borra notas (quedan en el registro) y vuelve a pendiente',
+                onTap: () async {
+                  if (!await confirmar(
+                    context,
+                    '¿Recatar ${m.codigo}?',
+                    texto: 'Se borran las notas actuales (quedan en el registro) y la muestra queda pendiente.',
+                    si: 'Recatar',
+                  )) {
+                    return;
+                  }
+                  if (!context.mounted) return;
+                  final ok = await ejecutar(
+                    context,
+                    () => repo.resolverIncidencia(tm.id, 'recatar', motivo: 'Recatar desde muestras'),
+                  );
+                  if (ok && context.mounted) Navigator.pop(context);
+                },
+              ),
+              AccionHoja(
+                icono: Icons.low_priority,
+                color: Paleta.azul,
+                titulo: 'Pasar al final de la tanda',
+                subtitulo: 'Borra notas y la coloca la última',
+                onTap: () async {
+                  if (!await confirmar(
+                    context,
+                    '¿Pasar ${m.codigo} al final?',
+                    texto: 'Se borran las notas y la muestra pasa al final de su tanda.',
+                    si: 'Pasar',
+                  )) {
+                    return;
+                  }
+                  if (!context.mounted) return;
+                  final ok = await ejecutar(
+                    context,
+                    () => repo.resolverIncidencia(tm.id, 'pasar_al_final', motivo: 'Pasar al final desde muestras'),
+                  );
+                  if (ok && context.mounted) Navigator.pop(context);
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              'Datos',
+              style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Campo(_texto, 'Código de texto / referencia'),
+            DropdownButtonFormField<int?>(
+              initialValue: _categoria,
+              isExpanded: true,
+              style: TextStyle(fontSize: 19, color: Theme.of(context).colorScheme.onSurface),
+              decoration: const InputDecoration(labelText: 'Categoría'),
+              items: [for (final x in cats) DropdownMenuItem(value: x.id, child: Text(x.nombre))],
+              onChanged: (v) => setState(() => _categoria = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Activa'),
+              subtitle: const Text('Las inactivas no se catan'),
+              value: _activa,
+              onChanged: (v) => setState(() => _activa = v),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+                  onPressed: () async {
+                    if (await confirmar(context, '¿Eliminar muestra ${m.codigo}?', si: 'Eliminar') && context.mounted) {
+                      if (await ejecutar(context, () => repo.borrar('muestras', m.id)) && context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.delete),
+                  label: const Text('Eliminar'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(minimumSize: Size(0, k ? 52 : 60)),
+                    onPressed: () async {
+                      final ok = await ejecutar(context, () async {
+                        await repo.actualizar('muestras', m.id, {
+                          'codigo_texto': _texto.text.trim().isEmpty ? m.codigo : _texto.text.trim(),
+                          'categoria_id': _categoria,
+                          'activo': _activa,
+                        });
+                      });
+                      if (ok && context.mounted) Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.check),
+                    label: const Text('Guardar'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

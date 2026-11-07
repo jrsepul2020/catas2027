@@ -156,3 +156,83 @@ class Resultado {
   String? get oficial => r['medalla_oficial'];
   String? get medalla => oficial ?? propuesta;
 }
+
+/// Tablet emparejada con un catador (tabla dispositivos).
+class Dispositivo {
+  Dispositivo(this.r);
+  final Json r;
+  int get id => _i(r['id']);
+  String get deviceId => r['device_id'] ?? '';
+  int? get catadorId => _in(r['catador_id']);
+  DateTime? get ultimaVez => _t(r['ultima_vez']);
+  bool get libre => catadorId == null;
+  String get corto {
+    final d = deviceId;
+    if (d.length <= 8) return d;
+    return '…${d.substring(d.length - 6)}';
+  }
+}
+
+/// Calcula resultados/medallas en la app (sirve en CLOUD y LOCAL sin depender de la vista SQL).
+List<Resultado> calcularResultados({
+  required List<Muestra> muestras,
+  required List<Puntuacion> puntuaciones,
+  required List<Json> medallas,
+  required Concurso? concurso,
+}) {
+  final granOro = concurso?.granOro ?? 92;
+  final oro = concurso?.oro ?? 85;
+  final plata = concurso?.plata ?? 82;
+  final porMuestra = <int, List<Puntuacion>>{};
+  for (final p in puntuaciones) {
+    if (p.estado != 'enviada' && p.estado != 'aprobada') continue;
+    if (p.total == null) continue;
+    (porMuestra[p.muestraId] ??= []).add(p);
+  }
+  final oficial = <int, Json>{
+    for (final m in medallas)
+      if (m['muestra_id'] != null) _i(m['muestra_id']): m,
+  };
+  final out = <Resultado>[];
+  for (final m in muestras) {
+    final ns = porMuestra[m.id] ?? const <Puntuacion>[];
+    final vals = [for (final n in ns) n.total!];
+    final media = vals.isEmpty ? null : vals.reduce((a, b) => a + b) / vals.length;
+    final mediaR = media == null ? null : (media * 100).round() / 100;
+    String? propuesta;
+    if (mediaR != null) {
+      if (m.noPremia) {
+        propuesta = 'sin_medalla';
+      } else if (mediaR >= granOro) {
+        propuesta = 'gran_oro';
+      } else if (mediaR >= oro) {
+        propuesta = 'oro';
+      } else if (mediaR >= plata) {
+        propuesta = 'plata';
+      } else {
+        propuesta = 'sin_medalla';
+      }
+    }
+    final of = oficial[m.id];
+    out.add(
+      Resultado({
+        'muestra_id': m.id,
+        'concurso_id': m.concursoId,
+        'categoria_id': m.categoriaId,
+        'codigo_ciego': m.codigo,
+        'codigo_texto': m.codigoTexto,
+        'activo': m.activa,
+        'n_notas': ns.length,
+        'n_aprobadas': ns.where((n) => n.aprobada).length,
+        'media': mediaR,
+        'minimo': vals.isEmpty ? null : vals.reduce((a, b) => a < b ? a : b),
+        'maximo': vals.isEmpty ? null : vals.reduce((a, b) => a > b ? a : b),
+        'no_premia': m.noPremia,
+        'medalla_propuesta': propuesta,
+        'medalla_oficial': of?['medalla'],
+        'media_oficial': of?['media_final'],
+      }),
+    );
+  }
+  return out;
+}

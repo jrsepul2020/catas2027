@@ -32,6 +32,22 @@ class Repo {
   Future<void> quitarDeMesa(int id) =>
       c.from('catadores').update({'mesa_id': null, 'mesa': null, 'puesto': null}).eq('id', id);
 
+  /// Desvincula la tablet del catador (p. ej. tablet rota) y la deja libre para una reserva.
+  Future<void> liberarTablet(int catadorId) async {
+    await c.from('dispositivos').update({'catador_id': null}).eq('catador_id', catadorId);
+    await c.from('catadores').update({'activo': false}).eq('id', catadorId);
+  }
+
+  /// Asigna una tablet libre (reserva) a un catador. Si el catador ya tenía otra, la libera.
+  Future<void> asignarTablet(int dispositivoId, int catadorId) async {
+    await c.from('dispositivos').update({'catador_id': null}).eq('catador_id', catadorId);
+    await c
+        .from('dispositivos')
+        .update({'catador_id': catadorId, 'ultima_vez': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', dispositivoId);
+    await c.from('catadores').update({'activo': true}).eq('id', catadorId);
+  }
+
   // ------------------- tandas -------------------
   Future<void> reordenarTandas(List<int> ids, {String? motivo}) =>
       c.rpc('reordenar_tandas', params: {'ids': ids, 'p_motivo': motivo});

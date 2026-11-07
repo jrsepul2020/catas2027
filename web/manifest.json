@@ -1,11 +1,11 @@
 {
-    "name": "virtus_catas",
-    "short_name": "virtus_catas",
+    "name": "Virtus Catas 2027",
+    "short_name": "Virtus Catas",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#15365F",
+    "theme_color": "#15365F",
+    "description": "Gestión del concurso de cata Virtus 2027",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

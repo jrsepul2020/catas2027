@@ -139,6 +139,21 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
             titulo: c.esPresidente ? 'Pasar a catador' : 'Hacer presidente de mesa',
             onTap: () => Navigator.pop(s, 'presidente'),
           ),
+          if (c.conectado)
+            AccionHoja(
+              icono: Icons.phonelink_erase,
+              color: Paleta.rojo,
+              titulo: 'Liberar tablet (rota)',
+              subtitulo: 'Desvincula el dispositivo; queda libre para una reserva',
+              onTap: () => Navigator.pop(s, 'liberar'),
+            ),
+          AccionHoja(
+            icono: Icons.tablet_android,
+            color: Paleta.azul,
+            titulo: 'Asignar tablet de reserva',
+            subtitulo: 'Usa una de las tablets libres',
+            onTap: () => Navigator.pop(s, 'asignar'),
+          ),
           if (c.mesaId != null)
             AccionHoja(icono: Icons.logout, titulo: 'Quitar de la mesa', onTap: () => Navigator.pop(s, 'quitar')),
           AccionHoja(icono: Icons.edit, titulo: 'Editar datos', onTap: () => Navigator.pop(s, 'editar')),
@@ -172,11 +187,52 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
         }
         await repo.actualizar('catadores', c.id, {'rol': c.esPresidente ? 'catador' : 'presidente'});
       });
+    case 'liberar':
+      if (await confirmar(
+            context,
+            '¿Liberar la tablet de ${c.nombre}?',
+            texto: 'La tablet queda libre. Enciende una de reserva y asígnala a este catador.',
+            si: 'Liberar',
+          ) &&
+          context.mounted) {
+        await ejecutar(context, () async {
+          await repo.liberarTablet(c.id);
+          await registrarCambio(ref, 'liberar_tablet', tabla: 'catadores', registroId: '${c.id}', motivo: c.nombre);
+        }, ok: 'Tablet liberada');
+      }
+    case 'asignar':
+      await _asignarTabletReserva(context, ref, c);
     case 'quitar':
       await ejecutar(context, () => repo.quitarDeMesa(c.id));
     case 'editar':
       await editarCatador(context, ref, c);
   }
+}
+
+Future<void> _asignarTabletReserva(BuildContext context, WidgetRef ref, Catador c) async {
+  final libres = ref.read(tabletsLibresProvider);
+  if (libres.isEmpty) {
+    aviso(context, 'No hay tablets de reserva libres', error: true);
+    return;
+  }
+  final d = await elegir(
+    context,
+    titulo: 'Tablet de reserva para ${c.nombre}',
+    opciones: libres,
+    texto: (x) => 'Reserva ${x.corto}',
+    sub: (x) => x.ultimaVez == null ? 'Sin uso reciente' : 'Última: ${x.ultimaVez}',
+  );
+  if (d == null || !context.mounted) return;
+  await ejecutar(context, () async {
+    await ref.read(repoProvider)!.asignarTablet(d.id, c.id);
+    await registrarCambio(
+      ref,
+      'asignar_tablet',
+      tabla: 'dispositivos',
+      registroId: '${d.id}',
+      motivo: '${c.nombre} ← ${d.deviceId}',
+    );
+  }, ok: 'Tablet asignada');
 }
 
 Future<void> _moverCatador(BuildContext context, WidgetRef ref, Catador c) async {

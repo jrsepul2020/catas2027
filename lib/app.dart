@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/providers.dart';
 import 'ui/screens/ajustes_screen.dart';
+import 'ui/screens/auditoria_screen.dart';
 import 'ui/screens/catadores_screen.dart';
 import 'ui/screens/catas_screen.dart';
 import 'ui/screens/incidencias_screen.dart';
@@ -93,6 +94,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(path: '/medallas', builder: (_, _) => const MedallasScreen()),
+          GoRoute(path: '/auditoria', builder: (_, _) => const AuditoriaScreen()),
           GoRoute(path: '/incidencias', builder: (_, _) => const IncidenciasScreen()),
         ],
       ),

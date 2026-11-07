@@ -258,12 +258,29 @@ final incidenciasAbiertasListaProvider = Provider<List<TandaMuestra>>(
 );
 final incidenciasAbiertasProvider = Provider<int>((ref) => ref.watch(incidenciasAbiertasListaProvider).length);
 
-/// Resultados/medallas (vista SQL). Se recalcula cuando cambian notas o medallas.
-final resultadosProvider = FutureProvider<List<Resultado>>((ref) async {
-  ref.watch(puntuacionesProvider);
-  ref.watch(filasProvider('medallas'));
-  ref.watch(concursoProvider);
-  final repo = ref.watch(repoProvider);
-  if (repo == null || ref.watch(usuarioIdProvider) == null) return const [];
-  return repo.resultados(ref.watch(concursoIdProvider));
+/// Resultados/medallas calculados en la app (no depende de la vista SQL → funciona en LOCAL).
+final resultadosProvider = Provider<List<Resultado>>((ref) {
+  final medallas = ref.watch(filasProvider('medallas')).value ?? const [];
+  return calcularResultados(
+    muestras: ref.watch(muestrasProvider),
+    puntuaciones: ref.watch(puntuacionesProvider),
+    medallas: medallas,
+    concurso: ref.watch(concursoProvider),
+  );
 });
+
+final dispositivosProvider = Provider<List<Dispositivo>>(
+  (ref) => _lista(ref, 'dispositivos', Dispositivo.new, (a, b) => a.id.compareTo(b.id)),
+);
+
+final dispositivoDeCatadorProvider = Provider<Map<int, Dispositivo>>((ref) {
+  final m = <int, Dispositivo>{};
+  for (final d in ref.watch(dispositivosProvider)) {
+    if (d.catadorId != null) m[d.catadorId!] = d;
+  }
+  return m;
+});
+
+final tabletsLibresProvider = Provider<List<Dispositivo>>(
+  (ref) => ref.watch(dispositivosProvider).where((d) => d.libre).toList(),
+);

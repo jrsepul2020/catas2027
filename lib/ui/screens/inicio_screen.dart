@@ -27,6 +27,7 @@ class InicioScreen extends ConsumerWidget {
     final ausentes = catadores.where((c) => !c.presente).length;
     final conectados = catadores.where((c) => c.conectado).length;
     final catando = mesas.where((m) => tandas.any((t) => t.mesaId == m.id && t.estado == 'abierta')).length;
+    final reservas = ref.watch(tabletsLibresProvider).length;
 
     final tiles = [
       Baldosa(
@@ -87,12 +88,13 @@ class InicioScreen extends ConsumerWidget {
         onTap: () => context.go('/medallas'),
       ),
       Baldosa(
-        icono: Icons.sync,
-        texto: 'Sincronizar',
-        sub: 'Cloud y Local',
-        color: Paleta.azul,
-        onTap: () => context.push('/sync'),
+        icono: Icons.fact_check,
+        texto: 'Auditoría',
+        sub: reservas > 0 ? 'Chequeos · $reservas reserva${reservas == 1 ? '' : 's'}' : 'Incongruencias del día',
+        color: Paleta.rojo,
+        onTap: () => context.go('/auditoria'),
       ),
+      // Sincronizar: engranaje de la barra / rail (mantiene 9 baldosas sin scroll en el Redmi).
     ];
 
     final cols = k ? 3 : (MediaQuery.sizeOf(context).width >= 1100 ? 5 : 3);
@@ -105,8 +107,10 @@ class InicioScreen extends ConsumerWidget {
             : null,
         actions: [
           const ChipDia(),
-          if (!esAncho(context))
+          if (!esAncho(context)) ...[
+            IconButton(tooltip: 'Sincronizar', onPressed: () => context.push('/sync'), icon: const Icon(Icons.sync)),
             IconButton(onPressed: () => context.push('/configuracion'), icon: const Icon(Icons.settings)),
+          ],
           const ChipEntorno(),
         ],
       ),

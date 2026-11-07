@@ -23,7 +23,7 @@ class _MedallasScreenState extends ConsumerState<MedallasScreen> {
     final concurso = ref.watch(concursoProvider);
     final cats = ref.watch(categoriasProvider);
     final catNombre = {for (final c in cats) c.id: c.nombre};
-    final todos = (res.value ?? const <Resultado>[]).where((r) => _categoria == null || r.categoriaId == _categoria);
+    final todos = res.where((r) => _categoria == null || r.categoriaId == _categoria);
     final conNota = todos.where((r) => r.media != null).toList()
       ..sort((a, b) => (b.media ?? 0).compareTo(a.media ?? 0));
     final l = _filtro == null ? conNota : conNota.where((r) => r.medalla == _filtro).toList();
@@ -38,9 +38,6 @@ class _MedallasScreenState extends ConsumerState<MedallasScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Medallas'),
-        bottom: res.isLoading
-            ? const PreferredSize(preferredSize: Size.fromHeight(4), child: LinearProgressIndicator())
-            : null,
         actions: [
           IconButton(
             tooltip: 'Copiar resultados (Excel)',
@@ -136,43 +133,38 @@ class _MedallasScreenState extends ConsumerState<MedallasScreen> {
                 ),
               ),
             Expanded(
-              child: res.hasError
-                  ? Vacio(icono: Icons.error, texto: '${res.error}')
-                  : l.isEmpty
+              child: l.isEmpty
                   ? const Vacio(icono: Icons.military_tech, texto: 'Aún no hay resultados')
-                  : RefreshIndicator(
-                      onRefresh: () => ref.refresh(resultadosProvider.future),
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 120),
-                        itemCount: l.length,
-                        itemExtent: 66,
-                        itemBuilder: (c, i) {
-                          final r = l[i];
-                          return ListTile(
-                            leading: Medalla(r.medalla, grande: true),
-                            title: Text(
-                              '${i + 1}. ${r.codigo}${r.codigoTexto != null && r.codigoTexto != r.codigo ? ' · ${r.codigoTexto}' : ''}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              [
-                                catNombre[r.categoriaId],
-                                '${r.n} notas (${r.nAprobadas} aprob.)',
-                                if (r.oficial != null) 'OFICIAL' else if (r.propuesta != null) 'propuesta',
-                                if (r.noPremia) 'no premia',
-                              ].whereType<String>().join(' · '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Text(
-                              r.media!.toStringAsFixed(2).replaceAll('.', ','),
-                              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
-                            ),
-                            onTap: () => _cambiarMedalla(context, r),
-                          );
-                        },
-                      ),
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 120),
+                      itemCount: l.length,
+                      itemExtent: 66,
+                      itemBuilder: (c, i) {
+                        final r = l[i];
+                        return ListTile(
+                          leading: Medalla(r.medalla, grande: true),
+                          title: Text(
+                            '${i + 1}. ${r.codigo}${r.codigoTexto != null && r.codigoTexto != r.codigo ? ' · ${r.codigoTexto}' : ''}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            [
+                              catNombre[r.categoriaId],
+                              '${r.n} notas (${r.nAprobadas} aprob.)',
+                              if (r.oficial != null) 'OFICIAL' else if (r.propuesta != null) 'propuesta',
+                              if (r.noPremia) 'no premia',
+                            ].whereType<String>().join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Text(
+                            r.media!.toStringAsFixed(2).replaceAll('.', ','),
+                            style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
+                          ),
+                          onTap: () => _cambiarMedalla(context, r),
+                        );
+                      },
                     ),
             ),
           ],

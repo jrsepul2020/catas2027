@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtus_catas/core/providers.dart';
 import 'package:virtus_catas/data/models.dart';
 import 'package:virtus_catas/data/repo.dart';
+import 'package:virtus_catas/ui/screens/auditoria_screen.dart';
 import 'package:virtus_catas/ui/screens/catadores_screen.dart';
 import 'package:virtus_catas/ui/screens/catas_screen.dart';
 import 'package:virtus_catas/ui/screens/directo_screen.dart';
@@ -94,6 +95,12 @@ final datos = <String, List<Json>>{
     {'id': 6, 'catador_id': 1, 'muestra_id': 2, 'tanda_id': 1, 'scores': {}, 'total': 88.5, 'estado': 'enviada'},
   ],
   'medallas': [],
+  'dispositivos': [
+    for (var i = 1; i <= 13; i++)
+      {'id': i, 'device_id': 'TAB-$i', 'catador_id': i, 'ultima_vez': '2027-04-01T10:00:00Z'},
+    {'id': 14, 'device_id': 'RESERVA-1', 'catador_id': null, 'ultima_vez': '2027-04-01T08:00:00Z'},
+    {'id': 15, 'device_id': 'RESERVA-2', 'catador_id': null, 'ultima_vez': '2027-04-01T08:00:00Z'},
+  ],
   'registro_cambios': [
     {
       'id': 'a',
@@ -118,7 +125,7 @@ Future<void> montar(WidgetTester tester, Widget pantalla, Size size) async {
         repoProvider.overrideWithValue(repoFalso),
         filasProvider.overrideWith((ref, tabla) => Stream.value(datos[tabla] ?? const [])),
         resultadosProvider.overrideWith(
-          (ref) async => [
+          (ref) => [
             Resultado({
               'muestra_id': 1,
               'categoria_id': 1,
@@ -134,6 +141,8 @@ Future<void> montar(WidgetTester tester, Widget pantalla, Size size) async {
             }),
           ],
         ),
+        // Tabletas: 13 emparejadas + 2 de reserva.
+        // (filasProvider ya cubre 'dispositivos' vía datos si se añade)
       ],
       child: MaterialApp(
         theme: tema(compacto: size.shortestSide < 600),
@@ -159,6 +168,7 @@ void main() {
     'notas': const PuntuarScreen(),
     'hoja de notas': const HojaPuntuacionScreen(tandaId: 1),
     'medallas': const MedallasScreen(),
+    'auditoria': const AuditoriaScreen(),
     'incidencias': const IncidenciasScreen(),
   };
   for (final size in const [Size(393, 873), Size(800, 1280), Size(1280, 800)]) {
@@ -199,7 +209,7 @@ void main() {
       'Catadores',
       'Muestras',
       'Medallas',
-      'Sincronizar',
+      'Auditoría',
     ]) {
       expect(find.text(t).hitTestable(), findsOneWidget, reason: t);
     }
