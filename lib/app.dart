@@ -8,6 +8,7 @@ import 'ui/screens/ajustes_screen.dart';
 import 'ui/screens/catadores_screen.dart';
 import 'ui/screens/catas_screen.dart';
 import 'ui/screens/incidencias_screen.dart';
+import 'ui/screens/directo_screen.dart';
 import 'ui/screens/inicio_screen.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/medallas_screen.dart';
@@ -22,11 +23,12 @@ import 'ui/theme.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final refrescar = ValueNotifier(0);
   ref.listen(sesionProvider, (_, _) => refrescar.value++);
-  ref.listen(cataIdProvider, (_, _) => refrescar.value++);
+  ref.listen(concursoIdProvider, (_, _) => refrescar.value++);
+  ref.listen(concursosCargadosProvider, (_, _) => refrescar.value++);
   ref.listen(clienteProvider, (_, _) => refrescar.value++);
   ref.onDispose(refrescar.dispose);
 
-  const libres = {'/ajustes', '/login'};
+  const libres = {'/configuracion', '/login'};
 
   return GoRouter(
     initialLocation: '/',
@@ -36,11 +38,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final cli = ref.read(clienteProvider);
       final ses = ref.read(sesionProvider);
       if (cli.isLoading || ses.isLoading) return loc == '/carga' ? null : '/carga';
-      if (cli.value == null) return loc == '/ajustes' ? null : '/ajustes';
+      if (cli.value == null) return loc == '/configuracion' ? null : '/configuracion';
       if (ses.value == null) return libres.contains(loc) ? null : '/login';
       if (loc == '/login' || loc == '/carga') return '/';
-      final sinCata = ref.read(cataIdProvider) == null;
-      if (sinCata && !{'/catas', '/ajustes', '/sync'}.contains(loc)) return '/catas';
+      // Varios concursos y ninguno elegido: pantalla de elección.
+      final sinConcurso = ref.read(concursosCargadosProvider) && ref.read(concursoIdProvider) == null;
+      if (sinConcurso && !{'/catas', '/configuracion', '/sync'}.contains(loc)) return '/catas';
       return null;
     },
     routes: [
@@ -49,20 +52,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const Scaffold(body: Center(child: CircularProgressIndicator())),
       ),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-      GoRoute(path: '/ajustes', builder: (_, _) => const AjustesScreen()),
+      GoRoute(path: '/configuracion', builder: (_, _) => const AjustesScreen()),
       GoRoute(path: '/catas', builder: (_, _) => const CatasScreen()),
       GoRoute(path: '/sync', builder: (_, _) => const SyncScreen()),
       ShellRoute(
         builder: (_, st, child) => Shell(ubicacion: st.matchedLocation, child: child),
         routes: [
           GoRoute(path: '/', builder: (_, _) => const InicioScreen()),
+          GoRoute(path: '/directo', builder: (_, _) => const DirectoScreen()),
           GoRoute(
             path: '/mesas',
             builder: (_, _) => const MesasScreen(),
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (_, s) => MesaDetalleScreen(id: s.pathParameters['id']!),
+                builder: (_, s) => MesaDetalleScreen(id: int.tryParse(s.pathParameters['id']!) ?? 0),
               ),
             ],
           ),
@@ -72,7 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (_, s) => TandaDetalleScreen(id: s.pathParameters['id']!),
+                builder: (_, s) => TandaDetalleScreen(id: int.tryParse(s.pathParameters['id']!) ?? 0),
               ),
             ],
           ),
@@ -84,7 +88,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':tanda',
-                builder: (_, s) => HojaPuntuacionScreen(tandaId: s.pathParameters['tanda']!),
+                builder: (_, s) => HojaPuntuacionScreen(tandaId: int.tryParse(s.pathParameters['tanda']!) ?? 0),
               ),
             ],
           ),
@@ -103,8 +107,16 @@ class VirtusCatasApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
     title: 'Virtus Catas 2027',
     debugShowCheckedModeBanner: false,
-    theme: tema(Brightness.light),
-    darkTheme: tema(Brightness.dark),
+    // Siempre tema claro (paleta fija) y compacto en teléfono.
+    theme: tema(),
+    themeMode: ThemeMode.light,
+    builder: (context, child) {
+      final compacto = MediaQuery.sizeOf(context).shortestSide < 600;
+      return Theme(
+        data: tema(compacto: compacto),
+        child: child!,
+      );
+    },
     routerConfig: ref.watch(routerProvider),
     locale: const Locale('es'),
     supportedLocales: const [Locale('es'), Locale('en')],

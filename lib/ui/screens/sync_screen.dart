@@ -16,12 +16,13 @@ class SyncScreen extends ConsumerStatefulWidget {
 
 class _SyncScreenState extends ConsumerState<SyncScreen> {
   Direccion _dir = Direccion.ambas;
-  bool _soloCata = true;
   bool _completa = false;
   bool _corriendo = false;
   final List<String> _log = [];
   ResultadoSync? _res;
   final Map<Entorno, SupabaseClient?> _cli = {};
+  List<Map<String, dynamic>> _dias = []; // días del concurso en CLOUD
+  int? _dia; // día que se baja a LOCAL
 
   @override
   void initState() {
@@ -34,7 +35,25 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     for (final e in Entorno.values) {
       _cli[e] = await b.cliente(e);
     }
+    await _cargarDias();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _cargarDias() async {
+    final c = _cli[Entorno.cloud];
+    if (c?.auth.currentSession == null) return;
+    try {
+      _dias = await c!.from('dias_concurso').select('id, nombre, fecha').order('fecha');
+      if (_dias.isNotEmpty && !_dias.any((d) => d['id'] == _dia)) {
+        final hoy = DateTime.now().toIso8601String().substring(0, 10);
+        final guardado = ref.read(prefsProvider).getInt('dia_cloud');
+        _dia =
+            (_dias.where((d) => d['id'] == guardado).firstOrNull ??
+                    _dias.where((d) => d['fecha'] == hoy).firstOrNull ??
+                    _dias.first)['id']
+                as int;
+      }
+    } catch (_) {}
   }
 
   Future<void> _login(Entorno e) async {
@@ -60,6 +79,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       ],
       guardar: () => c.auth.signInWithPassword(email: email.text.trim(), password: pass.text),
     );
+    await _cargarDias();
     if (mounted) setState(() {});
   }
 
@@ -78,7 +98,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       await for (final p in svc.sincronizar(
         _dir,
         completa: _completa,
-        soloCataId: _soloCata ? ref.read(cataIdProvider) : null,
+        diaBajar: _dir == Direccion.localACloud ? null : _dia,
         res: res,
       )) {
         if (!mounted) return;
@@ -110,7 +130,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Widget build(BuildContext context) {
     final b = ref.read(backendsProvider);
     final listo = Entorno.values.every((e) => _cli[e]?.auth.currentSession != null);
-    final cata = ref.watch(cataProvider);
 
     Widget tarjeta(Entorno e) {
       final c = _cli[e];
@@ -125,7 +144,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 Icon(
                   cloud ? Icons.cloud : Icons.dns,
                   size: 48,
-                  color: cloud ? Colors.blue.shade700 : Colors.teal.shade700,
+                  color: cloud ? Colors.blue.shade700 : Colors.deepPurple.shade700,
                 ),
                 Text(e.corto, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
@@ -137,14 +156,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 ),
                 const SizedBox(height: 8),
                 if (c == null)
-                  OutlinedButton(onPressed: () => context.push('/ajustes'), child: const Text('Configurar'))
+                  OutlinedButton(onPressed: () => context.push('/configuracion'), child: const Text('Configurar'))
                 else if (ses == null)
                   FilledButton(onPressed: () => _login(e), child: const Text('Entrar'))
                 else
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.check_circle, color: Colors.green),
+                      const Icon(Icons.check_circle, color: Colors.amber),
                       const SizedBox(width: 6),
                       Flexible(child: Text(ses.user.email ?? 'ok', overflow: TextOverflow.ellipsis)),
                     ],
@@ -182,19 +201,30 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             SegmentedButton<Direccion>(
               segments: const [
                 ButtonSegment(value: Direccion.ambas, icon: Icon(Icons.sync_alt), label: Text('Ambas')),
-                ButtonSegment(value: Direccion.cloudALocal, label: Text('Cloud→Local')),
-                ButtonSegment(value: Direccion.localACloud, label: Text('Local→Cloud')),
+                ButtonSegment(value: Direccion.cloudALocal, icon: Icon(Icons.download), label: Text('Bajar')),
+                ButtonSegment(value: Direccion.localACloud, icon: Icon(Icons.upload), label: Text('Subir')),
               ],
               selected: {_dir},
               onSelectionChanged: _corriendo ? null : (s) => setState(() => _dir = s.first),
             ),
+            if (_dir != Direccion.localACloud && _dias.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('Día de cata que se baja a LOCAL', style: TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final d in _dias)
+                    ChoiceChip(
+                      label: Text('${d['nombre'] ?? ''} · ${d['fecha']}'),
+                      selected: _dia == d['id'],
+                      onSelected: _corriendo ? null : (_) => setState(() => _dia = d['id'] as int),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
-            SwitchListTile(
-              title: const Text('Solo la cata actual'),
-              subtitle: Text(cata?.nombre ?? 'Ninguna seleccionada'),
-              value: _soloCata && cata != null,
-              onChanged: cata == null || _corriendo ? null : (v) => setState(() => _soloCata = v),
-            ),
             SwitchListTile(
               title: const Text('Revisión completa'),
               subtitle: const Text('Compara todas las filas, no solo los cambios recientes'),
@@ -207,7 +237,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               onPressed: !listo || _corriendo ? null : _sincronizar,
               icon: _corriendo
                   ? const SizedBox.square(dimension: 28, child: CircularProgressIndicator(strokeWidth: 3))
-                  : const Icon(Icons.sync, size: 34),
+                  : const Icon(Icons.sync),
               label: Text(_corriendo ? 'Sincronizando…' : 'Sincronizar ahora', style: const TextStyle(fontSize: 22)),
             ),
             if (!listo)
@@ -217,8 +247,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               ),
             const SizedBox(height: 8),
             const Text(
-              'Gana el cambio más reciente (updated_at). Los borrados se propagan. '
-              'Las notas se emparejan por muestra + catador.',
+              'Bajar: trae a LOCAL solo el día elegido (sus tandas, muestras y notas) más mesas y catadores; '
+              'en LOCAL no hay selector de días, se trabaja ese día. '
+              'Subir: envía a CLOUD lo hecho en LOCAL. Ambas: las dos cosas. '
+              'Siempre gana el cambio más reciente; los borrados también viajan; '
+              'las notas se emparejan por catador + muestra. Las altas hechas en LOCAL usan ids desde 1.000.000.',
               style: TextStyle(fontSize: 14),
             ),
             if (_res != null) ...[

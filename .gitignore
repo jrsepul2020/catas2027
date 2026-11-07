@@ -46,3 +46,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Configuración real de Supabase (no subir al repositorio)
+/config/entornos.json
+
+# Cursor / IDE local
+.cursor/

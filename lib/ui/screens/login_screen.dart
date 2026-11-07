@@ -110,7 +110,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextButton.icon(
-                      onPressed: () => context.push('/ajustes'),
+                      onPressed: () => context.push('/configuracion'),
                       icon: const Icon(Icons.settings),
                       label: const Text('Configurar conexiones'),
                     ),

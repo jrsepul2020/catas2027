@@ -1,4 +1,4 @@
-package com.virtus.virtus_catas
+package com.virtus.gestioncatas
 
 import io.flutter.embedding.android.FlutterActivity
 

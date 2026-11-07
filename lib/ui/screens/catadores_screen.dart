@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../../data/models.dart';
+import '../theme.dart';
 import '../widgets.dart';
 import 'incidencias_screen.dart';
 
@@ -46,14 +47,18 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
               child: ListView.builder(
                 padding: const EdgeInsets.only(bottom: 120),
                 itemCount: l.length,
-                itemExtent: 84,
+                itemExtent: 62,
                 itemBuilder: (c, i) {
                   final x = l[i];
                   final mesa = mesas[x.mesaId];
                   return ListTile(
                     leading: CircleAvatar(
-                      radius: 26,
-                      backgroundColor: x.presente ? null : Theme.of(context).colorScheme.errorContainer,
+                      radius: 19,
+                      backgroundColor: !x.presente
+                          ? Theme.of(context).colorScheme.errorContainer
+                          : x.esPresidente
+                          ? Theme.of(context).colorScheme.tertiaryContainer
+                          : null,
                       child: Text(x.iniciales, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                     ),
                     title: Text(x.completo, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -61,10 +66,17 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
                       [
                         mesa == null ? 'Sin mesa' : '${mesa.nombre} · puesto ${x.puesto ?? '–'}',
                         if (x.esPresidente) 'Presidente',
+                        if (x.pais != null) x.pais!,
                         if (!x.presente) 'AUSENTE',
                       ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    trailing: const Icon(Icons.more_vert, size: 30),
+                    trailing: Icon(
+                      x.conectado ? Icons.tablet_android : Icons.more_vert,
+                      size: 30,
+                      color: x.conectado ? Colors.amber.shade700 : null,
+                    ),
                     onTap: () => opcionesCatador(context, ref, x),
                   );
                 },
@@ -80,24 +92,22 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
 Future<void> editarCatador(BuildContext context, WidgetRef ref, Catador? c) async {
   final repo = ref.read(repoProvider)!;
   final nombre = TextEditingController(text: c?.nombre ?? '');
-  final ape = TextEditingController(text: c?.apellidos ?? '');
-  final email = TextEditingController(text: c?.email ?? '');
-  final tel = TextEditingController(text: c?.telefono ?? '');
+  final titulo = TextEditingController(text: c?.r['titulo'] ?? '');
+  final pais = TextEditingController(text: c?.r['pais_codigo'] ?? '');
   String? t(TextEditingController x) => x.text.trim().isEmpty ? null : x.text.trim();
   await hojaFormulario(
     context,
     titulo: c == null ? 'Nuevo catador' : 'Editar catador',
     campos: [
-      Campo(nombre, 'Nombre', autofocus: c == null),
-      Campo(ape, 'Apellidos'),
-      Campo(email, 'Email'),
-      Campo(tel, 'Teléfono'),
+      Campo(nombre, 'Nombre y apellidos', autofocus: c == null),
+      Campo(titulo, 'Título (opcional, p. ej. Dr.)'),
+      Campo(pais, 'País (código, p. ej. ES)'),
     ],
     borrar: c == null ? null : () => repo.borrar('catadores', c.id),
     guardar: () async {
-      final d = {'nombre': nombre.text.trim(), 'apellidos': t(ape), 'email': t(email), 'telefono': t(tel)};
+      final d = {'nombre': nombre.text.trim(), 'titulo': t(titulo), 'pais_codigo': t(pais)?.toUpperCase()};
       c == null
-          ? await repo.insertar('catadores', {...d, 'cata_id': ref.read(cataIdProvider)})
+          ? await repo.insertar('catadores', {...d, 'rol': 'catador'})
           : await repo.actualizar('catadores', c.id, d);
     },
   );
@@ -114,34 +124,24 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(c.completo, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+          Text(c.completo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          ListTile(
-            leading: const Icon(Icons.event_seat, size: 34),
-            title: const Text('Cambiar mesa / puesto'),
-            onTap: () => Navigator.pop(s, 'mover'),
-          ),
-          ListTile(
-            leading: Icon(c.presente ? Icons.person_off : Icons.person, size: 34),
-            title: Text(c.presente ? 'Marcar AUSENTE' : 'Marcar presente'),
+          AccionHoja(icono: Icons.event_seat, titulo: 'Cambiar mesa / puesto', onTap: () => Navigator.pop(s, 'mover')),
+          AccionHoja(
+            icono: c.presente ? Icons.person_off : Icons.person,
+            color: c.presente ? Paleta.rojo : Paleta.azul,
+            titulo: c.presente ? 'Marcar AUSENTE' : 'Marcar presente',
             onTap: () => Navigator.pop(s, 'presente'),
           ),
-          ListTile(
-            leading: const Icon(Icons.star, size: 34),
-            title: Text(c.esPresidente ? 'Quitar presidente' : 'Hacer presidente de mesa'),
+          AccionHoja(
+            icono: Icons.star,
+            color: Paleta.lila,
+            titulo: c.esPresidente ? 'Pasar a catador' : 'Hacer presidente de mesa',
             onTap: () => Navigator.pop(s, 'presidente'),
           ),
           if (c.mesaId != null)
-            ListTile(
-              leading: const Icon(Icons.logout, size: 34),
-              title: const Text('Quitar de la mesa'),
-              onTap: () => Navigator.pop(s, 'quitar'),
-            ),
-          ListTile(
-            leading: const Icon(Icons.edit, size: 34),
-            title: const Text('Editar datos'),
-            onTap: () => Navigator.pop(s, 'editar'),
-          ),
+            AccionHoja(icono: Icons.logout, titulo: 'Quitar de la mesa', onTap: () => Navigator.pop(s, 'quitar')),
+          AccionHoja(icono: Icons.edit, titulo: 'Editar datos', onTap: () => Navigator.pop(s, 'editar')),
           const SizedBox(height: 8),
         ],
       ),
@@ -154,21 +154,26 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
     case 'presente':
       await ejecutar(context, () async {
         await repo.actualizar('catadores', c.id, {'presente': !c.presente});
-        if (c.presente) {
-          await registrarIncidenciaAuto(
-            ref,
-            tipo: 'catador_ausente',
-            mesaId: c.mesaId,
-            catadorId: c.id,
-            resuelta: false,
-            descripcion: '${c.completo} ausente',
-          );
-        }
+        await registrarCambio(
+          ref,
+          c.presente ? 'catador_ausente' : 'catador_presente',
+          tabla: 'catadores',
+          registroId: '${c.id}',
+          motivo: '${c.nombre}${c.puesto != null ? ' (mesa ${c.r['mesa'] ?? '?'}, puesto ${c.puesto})' : ''}',
+        );
       });
     case 'presidente':
-      await ejecutar(context, () => repo.actualizar('catadores', c.id, {'es_presidente': !c.esPresidente}));
+      await ejecutar(context, () async {
+        if (!c.esPresidente && c.mesaId != null) {
+          // Solo un presidente por mesa: el anterior pasa a catador.
+          for (final o in ref.read(catadoresDeMesaProvider(c.mesaId!)).where((x) => x.esPresidente)) {
+            await repo.actualizar('catadores', o.id, {'rol': 'catador'});
+          }
+        }
+        await repo.actualizar('catadores', c.id, {'rol': c.esPresidente ? 'catador' : 'presidente'});
+      });
     case 'quitar':
-      await ejecutar(context, () => repo.moverCatador(c.id));
+      await ejecutar(context, () => repo.quitarDeMesa(c.id));
     case 'editar':
       await editarCatador(context, ref, c);
   }
@@ -186,7 +191,8 @@ Future<void> _moverCatador(BuildContext context, WidgetRef ref, Catador c) async
   );
   if (mesa == null || !context.mounted) return;
   final ocupantes = {for (final x in ref.read(catadoresDeMesaProvider(mesa.id))) x.puesto: x};
-  final maxP = [8, ...ocupantes.keys.whereType<int>().map((p) => p + 1)].reduce((a, b) => a > b ? a : b);
+  final porMesa = ref.read(concursoProvider)?.catadoresPorMesa ?? 5;
+  final maxP = [porMesa, ...ocupantes.keys.whereType<int>().map((p) => p + 1)].reduce((a, b) => a > b ? a : b);
   final puesto = await showModalBottomSheet<int>(
     context: context,
     showDragHandle: true,
@@ -198,7 +204,7 @@ Future<void> _moverCatador(BuildContext context, WidgetRef ref, Catador c) async
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Puesto en ${mesa.nombre}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+            Text('Puesto en ${mesa.nombre}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
             const Text('Si está ocupado, se intercambian.', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 12),
             Wrap(
@@ -229,23 +235,9 @@ Future<void> _moverCatador(BuildContext context, WidgetRef ref, Catador c) async
     ),
   );
   if (puesto == null || !context.mounted) return;
-  final repo = ref.read(repoProvider)!;
-  final otro = ocupantes[puesto];
-  await ejecutar(context, () async {
-    if (otro != null && otro.id != c.id) {
-      // Intercambio atómico: el otro pasa al sitio original de c.
-      await repo.intercambiarPuestos(c.id, otro.id);
-    } else {
-      await repo.moverCatador(c.id, mesaId: mesa.id, puesto: puesto);
-    }
-    await registrarIncidenciaAuto(
-      ref,
-      tipo: 'cambio_puesto',
-      mesaId: mesa.id,
-      catadorId: c.id,
-      descripcion:
-          '${c.completo} → ${mesa.nombre}, puesto $puesto'
-          '${otro != null && otro.id != c.id ? ' (intercambio con ${otro.completo})' : ''}',
-    );
-  }, ok: 'Movido a ${mesa.nombre} · puesto $puesto');
+  await ejecutar(
+    context,
+    () => ref.read(repoProvider)!.moverCatador(c.id, mesa.id, puesto),
+    ok: 'Movido a ${mesa.nombre} · puesto $puesto',
+  );
 }

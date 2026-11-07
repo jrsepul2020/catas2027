@@ -1,0 +1,7 @@
+{
+  "CLOUD_URL": "https://TU-PROYECTO.supabase.co",
+  "CLOUD_ANON_KEY": "pega-aqui-la-anon-o-publishable-key",
+  "LOCAL_URL": "http://192.168.1.50:54321",
+  "LOCAL_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDjblYTn_I0",
+  "ENTORNO_INICIAL": "local"
+}

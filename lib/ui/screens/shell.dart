@@ -15,10 +15,11 @@ class _Dest {
 
 const _destinos = [
   _Dest('/', Icons.dashboard, 'Inicio'),
+  _Dest('/directo', Icons.live_tv, 'Directo'),
   _Dest('/mesas', Icons.table_restaurant, 'Mesas'),
-  _Dest('/puntuar', Icons.edit_note, 'Puntuar'),
-  _Dest('/medallas', Icons.military_tech, 'Medallas'),
+  _Dest('/puntuar', Icons.grid_on, 'Puntuac.'),
   _Dest('/incidencias', Icons.warning_amber_rounded, 'Incidencias'),
+  _Dest('/medallas', Icons.military_tech, 'Medallas', movil: false),
   _Dest('/tandas', Icons.format_list_numbered, 'Tandas', movil: false),
   _Dest('/catadores', Icons.groups, 'Catadores', movil: false),
   _Dest('/muestras', Icons.wine_bar, 'Muestras', movil: false),
@@ -55,9 +56,9 @@ class Shell extends ConsumerWidget {
             NavigationRail(
               selectedIndex: sel,
               onDestinationSelected: (i) => context.go(lista[i].ruta),
-              leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Icon(Icons.wine_bar, size: 40, color: Theme.of(context).colorScheme.primary),
+              leading: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Icon(Icons.wine_bar, size: 40, color: Colors.white),
               ),
               trailing: Expanded(
                 child: Align(
@@ -69,12 +70,14 @@ class Shell extends ConsumerWidget {
                       children: [
                         IconButton(
                           tooltip: 'Sincronizar',
+                          color: Colors.white,
                           onPressed: () => context.push('/sync'),
                           icon: const Icon(Icons.sync),
                         ),
                         IconButton(
                           tooltip: 'Ajustes',
-                          onPressed: () => context.push('/ajustes'),
+                          color: Colors.white,
+                          onPressed: () => context.push('/configuracion'),
                           icon: const Icon(Icons.settings),
                         ),
                       ],

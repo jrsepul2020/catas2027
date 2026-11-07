@@ -1,87 +1,97 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
 
 import 'models.dart';
 
-const _uuid = Uuid();
-
-/// Acceso a datos. Todas las escrituras son directas a Supabase; la UI se
-/// refresca sola por Realtime.
+/// Acceso a datos sobre el esquema de Catas2027. La UI se refresca sola por
+/// Realtime; las operaciones delicadas van por RPC (atómicas y auditadas en
+/// registro_cambios).
 class Repo {
   Repo(this.c);
   final SupabaseClient c;
 
-  String nuevoId() => _uuid.v4();
-
-  Future<String> insertar(String tabla, Json datos) async {
-    final id = (datos['id'] as String?) ?? nuevoId();
-    await c.from(tabla).insert({...datos, 'id': id});
-    return id;
+  Future<int> insertar(String tabla, Json datos) async {
+    final r = await c.from(tabla).insert(datos).select('id').single();
+    return (r['id'] as num).toInt();
   }
 
-  Future<void> actualizar(String tabla, String id, Json datos) => c.from(tabla).update(datos).eq('id', id);
+  Future<void> actualizar(String tabla, int id, Json datos) => c.from(tabla).update(datos).eq('id', id);
 
-  /// Borrado lógico (se sincroniza entre entornos).
-  Future<void> borrar(String tabla, String id) =>
-      c.from(tabla).update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  Future<void> borrar(String tabla, int id) => c.from(tabla).delete().eq('id', id);
 
-  // ------------------- operaciones de cata -------------------
-  Future<void> intercambiarPuestos(String a, String b) => c.rpc('intercambiar_puestos', params: {'a': a, 'b': b});
+  Future<void> registrar(String accion, {String? tabla, String? registroId, String? motivo, int? diaId}) => c
+      .from('registro_cambios')
+      .insert({'accion': accion, 'tabla': ?tabla, 'registro_id': ?registroId, 'motivo': ?motivo, 'dia_id': ?diaId});
 
-  Future<void> moverCatador(String id, {String? mesaId, int? puesto}) =>
-      c.from('catadores').update({'mesa_id': mesaId, 'puesto': puesto}).eq('id', id);
+  // ------------------- catadores y puestos -------------------
+  Future<void> intercambiarPuestos(int a, int b, {String? motivo}) =>
+      c.rpc('intercambiar_puestos', params: {'a': a, 'b': b, 'p_motivo': motivo});
 
-  Future<void> reordenar(String tabla, List<String> ids) => c.rpc('reordenar', params: {'tabla': tabla, 'ids': ids});
+  Future<void> moverCatador(int id, int mesaId, int puesto, {String? motivo}) =>
+      c.rpc('mover_catador', params: {'p_catador': id, 'p_mesa': mesaId, 'p_puesto': puesto, 'p_motivo': motivo});
 
-  Future<void> estadoTanda(String id, String estado) {
-    final ahora = DateTime.now().toUtc().toIso8601String();
-    return c
-        .from('tandas')
-        .update({
-          'estado': estado,
-          if (estado == 'en_curso') 'inicio_at': ahora,
-          if (estado == 'cerrada') 'fin_at': ahora,
-          if (estado == 'pendiente') ...{'inicio_at': null, 'fin_at': null},
-        })
-        .eq('id', id);
-  }
+  Future<void> quitarDeMesa(int id) =>
+      c.from('catadores').update({'mesa_id': null, 'mesa': null, 'puesto': null}).eq('id', id);
 
-  Future<void> puntuar({
-    required String cataId,
-    required String muestraId,
-    required String catadorId,
-    String? tandaId,
-    required double? puntos,
-    String? comentario,
-  }) => c.from('puntuaciones').upsert({
-    'cata_id': cataId,
-    'muestra_id': muestraId,
-    'catador_id': catadorId,
-    'tanda_id': tandaId,
-    'puntos': puntos,
-    'comentario': ?comentario,
-    'deleted_at': null,
-    'anulada': false,
-  }, onConflict: 'muestra_id,catador_id');
+  // ------------------- tandas -------------------
+  Future<void> reordenarTandas(List<int> ids, {String? motivo}) =>
+      c.rpc('reordenar_tandas', params: {'ids': ids, 'p_motivo': motivo});
 
-  Future<void> anadirMuestrasATanda(String cataId, String tandaId, List<String> muestraIds, int desde) async {
+  Future<void> reordenarMuestras(int tandaId, List<int> ids) =>
+      c.rpc('reordenar_muestras', params: {'p_tanda': tandaId, 'ids': ids});
+
+  Future<void> estadoTanda(int id, String estado) => c.from('tandas').update({'estado': estado}).eq('id', id);
+
+  Future<void> anadirMuestrasATanda(int tandaId, List<int> muestraIds, int desde) async {
     if (muestraIds.isEmpty) return;
     await c.from('tanda_muestras').insert([
       for (var i = 0; i < muestraIds.length; i++)
-        {'id': nuevoId(), 'cata_id': cataId, 'tanda_id': tandaId, 'muestra_id': muestraIds[i], 'orden': desde + i},
+        {'tanda_id': tandaId, 'muestra_id': muestraIds[i], 'orden': desde + i + 1, 'estado': 'pendiente'},
     ]);
   }
 
-  Future<List<Resultado>> resultados(String cataId) async {
-    final l = await c.from('v_resultados').select().eq('cata_id', cataId);
+  Future<void> activarMuestra(int tmId) => c.rpc('activar_muestra', params: {'p_tm': tmId});
+
+  Future<int> aprobarMuestra(int tmId) async =>
+      ((await c.rpc('aprobar_muestra', params: {'p_tm': tmId})) as num?)?.toInt() ?? 0;
+
+  // ------------------- incidencias -------------------
+  Future<void> marcarIncidencia(int tmId, String motivo) =>
+      c.rpc('marcar_incidencia', params: {'p_tm': tmId, 'p_motivo': motivo});
+
+  /// accion: recatar | pasar_al_final | quitar_de_tanda | continuar
+  Future<String> resolverIncidencia(int tmId, String accion, {String? motivo}) async =>
+      (await c.rpc(
+        'resolver_incidencia',
+        params: {'p_tm': tmId, 'p_accion': accion, 'p_motivo': motivo},
+      ))?.toString() ??
+      '';
+
+  // ------------------- puntuaciones -------------------
+  /// Nota manual (p. ej. de una ficha en papel). Las tablets envían el desglose.
+  Future<void> puntuarManual({
+    required int muestraId,
+    required int catadorId,
+    required int tandaId,
+    required double total,
+  }) => c.from('puntuaciones').upsert({
+    'muestra_id': muestraId,
+    'catador_id': catadorId,
+    'tanda_id': tandaId,
+    'total': total,
+    'scores': {'manual': true, 'total': total},
+    'estado': 'enviada',
+  }, onConflict: 'catador_id,muestra_id');
+
+  Future<void> borrarPuntuacion(int id) => c.from('puntuaciones').delete().eq('id', id);
+
+  // ------------------- medallas -------------------
+  Future<List<Resultado>> resultados(int? concursoId) async {
+    var q = c.from('v_resultados_gestion').select();
+    if (concursoId != null) q = q.eq('concurso_id', concursoId);
+    final l = await q;
     return l.map(Resultado.new).toList();
   }
 
-  Future<void> resolverIncidencia(String id, bool resuelta) => c
-      .from('incidencias')
-      .update({
-        'estado': resuelta ? 'resuelta' : 'abierta',
-        'resuelta_at': resuelta ? DateTime.now().toUtc().toIso8601String() : null,
-      })
-      .eq('id', id);
+  Future<void> fijarMedalla(int muestraId, String? medalla, double media) =>
+      c.rpc('fijar_medalla', params: {'p_muestra': muestraId, 'p_medalla': medalla, 'p_media': media});
 }
