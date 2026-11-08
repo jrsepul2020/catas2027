@@ -56,7 +56,20 @@ class AjustesScreen extends ConsumerWidget {
                   label: Text('Continuar a iniciar sesión (${e.corto})'),
                 ),
               ),
-            const Text('Entorno de trabajo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(
+              'Entorno de trabajo',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            Text(
+              'Las URL y claves se guardan en este dispositivo al pulsar Guardar. '
+              'Si estás logueado, también se guardan en tu usuario Auth para recuperarlas en otro aparato.',
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
             const SizedBox(height: 10),
             SegmentedButton<Entorno>(
               segments: const [
@@ -97,13 +110,18 @@ class AjustesScreen extends ConsumerWidget {
                         ),
                         onTap: () => editarConcurso(context, ref, cata),
                       ),
-                    ListTile(
-                      leading: Icon(Icons.logout, size: 36, color: Theme.of(context).colorScheme.error),
-                      title: const Text('Cerrar sesión'),
-                      onTap: () async {
-                        final c = await ref.read(clienteProvider.future);
-                        await c?.auth.signOut();
-                      },
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        onPressed: () => cerrarSesion(context, ref),
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Cerrar sesión'),
+                      ),
                     ),
                   ],
                 ),
@@ -191,10 +209,22 @@ class _TarjetaEntornoState extends ConsumerState<_TarjetaEntorno> {
       return;
     }
     await b.guardarConfig(widget.e, _actual);
+    // Si hay sesión, también deja las conexiones en el perfil Auth (para otros dispositivos).
+    final c = ref.read(clienteProvider).value;
+    if (c?.auth.currentUser != null) {
+      try {
+        await b.subirConexionesAlUsuario(c!);
+      } catch (_) {}
+    }
     ref.read(revisionProvider.notifier).subir();
     if (!mounted) return;
     setState(() => _cargar());
-    aviso(context, '${widget.e.corto} guardado');
+    aviso(
+      context,
+      c?.auth.currentUser != null
+          ? '${widget.e.corto} guardado en este dispositivo y en tu usuario'
+          : '${widget.e.corto} guardado en este dispositivo',
+    );
     _probar();
   }
 
@@ -229,7 +259,10 @@ class _TarjetaEntornoState extends ConsumerState<_TarjetaEntorno> {
                 Icon(cloud ? Icons.cloud : Icons.dns),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(widget.e.largo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                  child: Text(
+                    widget.e.largo,
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: cs.onSurface),
+                  ),
                 ),
               ],
             ),

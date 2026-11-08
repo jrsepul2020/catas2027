@@ -22,6 +22,13 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
     final mesas = ref.watch(mesaPorIdProvider);
     final q = _q.toLowerCase();
     final l = q.isEmpty ? todos : todos.where((c) => c.completo.toLowerCase().contains(q)).toList();
+    final problema = avisoCarga(
+      ref,
+      que: 'Cargar catadores',
+      tablas: const ['catadores', 'mesas'],
+      vacio: todos.isEmpty,
+      queHacerSiVacio: 'No hay catadores. Pulsa «Catador» para crear el primero.',
+    );
     return Scaffold(
       appBar: AppBar(title: Text('Catadores (${todos.length})'), actions: const [ChipEntorno()]),
       floatingActionButton: FloatingActionButton.extended(
@@ -29,62 +36,64 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
         icon: const Icon(Icons.person_add),
         label: const Text('Catador'),
       ),
-      body: Ancho(
-        max: 900,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: SearchBar(
-                hintText: 'Buscar catador',
-                leading: const Icon(Icons.search),
-                constraints: const BoxConstraints(minHeight: 60),
-                textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 19)),
-                onChanged: (v) => setState(() => _q = v),
-              ),
+      body:
+          problema ??
+          Ancho(
+            max: 900,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SearchBar(
+                    hintText: 'Buscar catador',
+                    leading: const Icon(Icons.search),
+                    constraints: const BoxConstraints(minHeight: 60),
+                    textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 19)),
+                    onChanged: (v) => setState(() => _q = v),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 120),
+                    itemCount: l.length,
+                    itemExtent: 62,
+                    itemBuilder: (c, i) {
+                      final x = l[i];
+                      final mesa = mesas[x.mesaId];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          radius: 19,
+                          backgroundColor: !x.presente
+                              ? Theme.of(context).colorScheme.errorContainer
+                              : x.esPresidente
+                              ? Theme.of(context).colorScheme.tertiaryContainer
+                              : null,
+                          child: Text(x.iniciales, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                        ),
+                        title: Text(x.completo, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                          [
+                            mesa == null ? 'Sin mesa' : '${mesa.nombre} · puesto ${x.puesto ?? '–'}',
+                            if (x.esPresidente) 'Presidente',
+                            if (x.pais != null) x.pais!,
+                            if (!x.presente) 'AUSENTE',
+                          ].join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Icon(
+                          x.conectado ? Icons.tablet_android : Icons.more_vert,
+                          size: 30,
+                          color: x.conectado ? Colors.amber.shade700 : null,
+                        ),
+                        onTap: () => opcionesCatador(context, ref, x),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 120),
-                itemCount: l.length,
-                itemExtent: 62,
-                itemBuilder: (c, i) {
-                  final x = l[i];
-                  final mesa = mesas[x.mesaId];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      radius: 19,
-                      backgroundColor: !x.presente
-                          ? Theme.of(context).colorScheme.errorContainer
-                          : x.esPresidente
-                          ? Theme.of(context).colorScheme.tertiaryContainer
-                          : null,
-                      child: Text(x.iniciales, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                    ),
-                    title: Text(x.completo, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(
-                      [
-                        mesa == null ? 'Sin mesa' : '${mesa.nombre} · puesto ${x.puesto ?? '–'}',
-                        if (x.esPresidente) 'Presidente',
-                        if (x.pais != null) x.pais!,
-                        if (!x.presente) 'AUSENTE',
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Icon(
-                      x.conectado ? Icons.tablet_android : Icons.more_vert,
-                      size: 30,
-                      color: x.conectado ? Colors.amber.shade700 : null,
-                    ),
-                    onTap: () => opcionesCatador(context, ref, x),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 }

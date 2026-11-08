@@ -134,10 +134,13 @@ class Backends {
     return ConfigEntorno(url: url ?? fab.url, anonKey: key ?? fab.anonKey, origen: OrigenConfig.dispositivo);
   }
 
-  Future<void> guardarConfig(Entorno e, ConfigEntorno c) async {
+  /// Guarda URL/clave en este dispositivo. Solo reinicia el cliente si cambian.
+  Future<void> guardarConfig(Entorno e, ConfigEntorno c, {bool reiniciarCliente = true}) async {
+    final antes = config(e);
     await _prefs.setString('url_${e.name}', c.urlLimpia);
     await _prefs.setString('key_${e.name}', c.anonKey.trim());
-    await _reiniciar(e);
+    final cambio = antes.urlLimpia != c.urlLimpia || antes.anonKey.trim() != c.anonKey.trim();
+    if (reiniciarCliente && cambio) await _reiniciar(e);
   }
 
   /// Vuelve a la configuración incluida en la app.
@@ -150,6 +153,59 @@ class Backends {
   Future<void> _reiniciar(Entorno e) async {
     await _cerrar(e);
     await _prefs.remove('ses_${e.name}');
+  }
+
+  // ---------- Contraseña recordada en este dispositivo ----------
+  bool recordarPass(Entorno e) => _prefs.getBool('guardar_pass_${e.name}') ?? false;
+
+  String? passGuardada(Entorno e) => recordarPass(e) ? _prefs.getString('pass_${e.name}') : null;
+
+  Future<void> setRecordarPass(Entorno e, {required bool recordar, String? pass}) async {
+    await _prefs.setBool('guardar_pass_${e.name}', recordar);
+    if (recordar && pass != null && pass.isNotEmpty) {
+      await _prefs.setString('pass_${e.name}', pass);
+    } else {
+      await _prefs.remove('pass_${e.name}');
+    }
+  }
+
+  /// Sube CLOUD/LOCAL (URL + anon) al perfil Auth del usuario logueado.
+  Future<void> subirConexionesAlUsuario(SupabaseClient c) async {
+    if (c.auth.currentUser == null) return;
+    final cfg = <String, dynamic>{
+      for (final e in Entorno.values)
+        if (config(e).completa) e.name: {'url': config(e).urlLimpia, 'key': config(e).anonKey.trim()},
+    };
+    if (cfg.isEmpty) return;
+    final data = Map<String, dynamic>.from(c.auth.currentUser!.userMetadata ?? {});
+    data['virtus_conexiones'] = cfg;
+    await c.auth.updateUser(UserAttributes(data: data));
+  }
+
+  /// Tras el login: trae al dispositivo las conexiones del usuario.
+  /// No reinicia el entorno de la sesión actual (evitar perder el login).
+  Future<bool> aplicarConexionesDelUsuario(SupabaseClient c, Entorno entornoSesion) async {
+    final raw = c.auth.currentUser?.userMetadata?['virtus_conexiones'];
+    if (raw is! Map) return false;
+    var cambio = false;
+    for (final e in Entorno.values) {
+      final m = raw[e.name];
+      if (m is! Map) continue;
+      final url = m['url']?.toString().trim() ?? '';
+      final key = m['key']?.toString().trim() ?? '';
+      if (url.isEmpty || key.isEmpty) continue;
+      final actual = config(e);
+      if (actual.urlLimpia == url && actual.anonKey.trim() == key) continue;
+      // El entorno con sesión: solo actualiza prefs si es idéntico (ya filtrado) o distinto
+      // sin matar el cliente; el resto sí se reinicia.
+      await guardarConfig(
+        e,
+        ConfigEntorno(url: url, anonKey: key),
+        reiniciarCliente: e != entornoSesion,
+      );
+      cambio = true;
+    }
+    return cambio;
   }
 
   /// JSON con el mismo formato que config/entornos.json (para copiar a otro móvil).

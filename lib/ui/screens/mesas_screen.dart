@@ -32,6 +32,13 @@ class MesasScreen extends ConsumerWidget {
               : w >= 900
               ? 3
               : 2);
+    final problema = avisoCarga(
+      ref,
+      que: 'Cargar mesas',
+      tablas: const ['mesas', 'tandas', 'catadores'],
+      vacio: mesas.isEmpty,
+      queHacerSiVacio: 'Sin mesas. Pulsa + para crear la primera, o revisa el concurso elegido.',
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mesas'),
@@ -45,24 +52,24 @@ class MesasScreen extends ConsumerWidget {
           const ChipEntorno(),
         ],
       ),
-      body: mesas.isEmpty
-          ? const Vacio(icono: Icons.table_restaurant, texto: 'Sin mesas. Pulsa + para crear la primera.')
-          : cols == 1
-          ? ListaLlena(
-              itemCount: mesas.length,
-              gap: k ? 8 : 12,
-              padding: EdgeInsets.all(k ? 10 : 14),
-              altoMinimo: k ? 110 : 140,
-              itemBuilder: (c, i) => _TarjetaMesa(mesas[i]),
-            )
-          : RejillaLlena(
-              itemCount: mesas.length,
-              columnas: cols,
-              gap: k ? 10 : 14,
-              padding: EdgeInsets.all(k ? 10 : 16),
-              altoMinimo: k ? 112 : 150,
-              itemBuilder: (c, i) => _TarjetaMesa(mesas[i]),
-            ),
+      body:
+          problema ??
+          (cols == 1
+              ? ListaLlena(
+                  itemCount: mesas.length,
+                  gap: k ? 8 : 12,
+                  padding: EdgeInsets.all(k ? 10 : 14),
+                  altoMinimo: k ? 110 : 140,
+                  itemBuilder: (c, i) => _TarjetaMesa(mesas[i]),
+                )
+              : RejillaLlena(
+                  itemCount: mesas.length,
+                  columnas: cols,
+                  gap: k ? 10 : 14,
+                  padding: EdgeInsets.all(k ? 10 : 16),
+                  altoMinimo: k ? 112 : 150,
+                  itemBuilder: (c, i) => _TarjetaMesa(mesas[i]),
+                )),
     );
   }
 }
@@ -114,7 +121,7 @@ class _TarjetaMesa extends ConsumerWidget {
                             m.nombre,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: k ? 18 : 22, fontWeight: FontWeight.w900),
+                            style: TextStyle(fontSize: k ? 18 : 22, fontWeight: FontWeight.w900, color: cs.onSurface),
                           ),
                         ),
                         EtiquetaEstado(estadosMesa[estado]!),

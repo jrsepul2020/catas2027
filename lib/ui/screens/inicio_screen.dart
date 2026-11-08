@@ -98,6 +98,13 @@ class InicioScreen extends ConsumerWidget {
     ];
 
     final cols = k ? 3 : (MediaQuery.sizeOf(context).width >= 1100 ? 5 : 3);
+    final problema = avisoCarga(
+      ref,
+      que: 'Cargar el panel de inicio',
+      tablas: const ['mesas', 'tandas', 'catadores', 'muestras', 'puntuaciones', 'tanda_muestras'],
+      vacio: !cargando && mesas.isEmpty && tandas.isEmpty && catadores.isEmpty,
+      queHacerSiVacio: 'No hay mesas, tandas ni catadores. Elige el concurso correcto o sincroniza / revisa CLOUD.',
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -109,32 +116,45 @@ class InicioScreen extends ConsumerWidget {
           const ChipDia(),
           if (!esAncho(context)) ...[
             IconButton(tooltip: 'Sincronizar', onPressed: () => context.push('/sync'), icon: const Icon(Icons.sync)),
-            IconButton(onPressed: () => context.push('/configuracion'), icon: const Icon(Icons.settings)),
+            IconButton(
+              tooltip: 'Ajustes',
+              onPressed: () => context.push('/configuracion'),
+              icon: const Icon(Icons.settings),
+            ),
+            IconButton(
+              tooltip: 'Cerrar sesión',
+              onPressed: () => cerrarSesion(context, ref),
+              icon: const Icon(Icons.logout),
+            ),
           ],
           const ChipEntorno(),
         ],
       ),
-      body: Ancho(
-        max: 1200,
-        child: LayoutBuilder(
-          builder: (c, box) {
-            // Las baldosas se ajustan para caber sin scroll.
-            final pad = k ? 10.0 : 16.0;
-            final gap = k ? 8.0 : 14.0;
-            final filas = (tiles.length / cols).ceil();
-            final ancho = (box.maxWidth - pad * 2 - gap * (cols - 1)) / cols;
-            final alto = ((box.maxHeight - pad * 2 - gap * (filas - 1)) / filas).clamp(90.0, ancho * 1.1);
-            return GridView.count(
-              padding: EdgeInsets.all(pad),
-              crossAxisCount: cols,
-              mainAxisSpacing: gap,
-              crossAxisSpacing: gap,
-              childAspectRatio: ancho / alto,
-              children: tiles,
-            );
-          },
-        ),
-      ),
+      body:
+          problema ??
+          Ancho(
+            max: 1200,
+            child: LayoutBuilder(
+              builder: (c, box) {
+                // Las baldosas se ajustan para caber sin scroll.
+                final pad = k ? 10.0 : 16.0;
+                final gap = k ? 8.0 : 14.0;
+                final filas = (tiles.length / cols).ceil();
+                final w = box.maxWidth.isFinite ? box.maxWidth : 400.0;
+                final h = box.maxHeight.isFinite ? box.maxHeight : 600.0;
+                final ancho = (w - pad * 2 - gap * (cols - 1)) / cols;
+                final alto = ((h - pad * 2 - gap * (filas - 1)) / filas).clamp(90.0, ancho * 1.1);
+                return GridView.count(
+                  padding: EdgeInsets.all(pad),
+                  crossAxisCount: cols,
+                  mainAxisSpacing: gap,
+                  crossAxisSpacing: gap,
+                  childAspectRatio: ancho / alto,
+                  children: tiles,
+                );
+              },
+            ),
+          ),
     );
   }
 }

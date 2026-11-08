@@ -14,7 +14,7 @@ class _Dest {
 }
 
 const _destinos = [
-  _Dest('/', Icons.dashboard, 'Inicio'),
+  _Dest('/', Icons.home, 'Inicio'),
   _Dest('/directo', Icons.live_tv, 'Directo'),
   _Dest('/mesas', Icons.table_restaurant, 'Mesas'),
   _Dest('/puntuar', Icons.grid_on, 'Puntuac.'),
@@ -80,6 +80,12 @@ class Shell extends ConsumerWidget {
                           onPressed: () => context.push('/configuracion'),
                           icon: const Icon(Icons.settings),
                         ),
+                        IconButton(
+                          tooltip: 'Cerrar sesión',
+                          color: Colors.white,
+                          onPressed: () => cerrarSesion(context, ref),
+                          icon: const Icon(Icons.logout),
+                        ),
                       ],
                     ),
                   ),
@@ -88,13 +94,25 @@ class Shell extends ConsumerWidget {
               destinations: [for (final d in lista) NavigationRailDestination(icon: icono(d), label: Text(d.texto))],
             ),
             const VerticalDivider(width: 1),
-            Expanded(child: child),
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(child: child),
+                  const PanelDiagnostico(),
+                ],
+              ),
+            ),
           ],
         ),
       );
     }
     return Scaffold(
-      body: child,
+      body: Column(
+        children: [
+          Expanded(child: child),
+          const PanelDiagnostico(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: sel,
         onDestinationSelected: (i) => context.go(lista[i].ruta),

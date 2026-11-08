@@ -27,7 +27,7 @@ edición a cualquier usuario con sesión.
 supabase start          # crea la base idéntica a Catas2027 (migraciones de supabase/migrations)
 supabase status         # muestra API URL y anon key
 ```
-Crea un usuario en el Studio local (http://127.0.0.1:54323 → Authentication) o con «Crear cuenta» en la app.
+El usuario admin ya debe existir en CLOUD y en LOCAL (Studio local: http://127.0.0.1:54323 → Authentication). La app no crea cuentas.
 Luego, en la app → Sincronizar → **Bajar** para traer el concurso desde CLOUD.
 
 ### 3. Configuración de conexiones

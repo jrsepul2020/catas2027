@@ -56,14 +56,22 @@ class PuntuarScreen extends ConsumerWidget {
                         mesas[t.mesaId]?.nombre ?? 'Sin mesa',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: k ? 18 : 22, fontWeight: FontWeight.w900),
+                        style: TextStyle(
+                          fontSize: k ? 18 : 22,
+                          fontWeight: FontWeight.w900,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                       SizedBox(height: k ? 2 : 4),
                       Text(
                         t.nombre,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: k ? 16 : 19, fontWeight: FontWeight.w800),
+                        style: TextStyle(
+                          fontSize: k ? 16 : 19,
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                       SizedBox(height: k ? 2 : 4),
                       Text(
@@ -97,20 +105,29 @@ class PuntuarScreen extends ConsumerWidget {
       );
     }
 
+    final problema = avisoCarga(
+      ref,
+      que: 'Cargar puntuaciones (tandas del día)',
+      tablas: const ['tandas', 'tanda_muestras', 'mesas', 'muestras', 'puntuaciones'],
+      vacio: l.isEmpty,
+      queHacerSiVacio:
+          'No hay tandas para el día del chip. Cambia el día o elige «Todos los días». '
+          'Si el panel Diagnóstico muestra tandas:0, Cloud no está devolviendo la tabla.',
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('Puntuaciones'), actions: const [ChipDia(), ChipEntorno()]),
-      body: l.isEmpty
-          ? const Vacio(icono: Icons.grid_on, texto: 'No hay tandas para este día.')
-          : Ancho(
-              max: 900,
-              child: ListaLlena(
-                itemCount: l.length,
-                gap: k ? 8 : 12,
-                padding: EdgeInsets.all(k ? 10 : 14),
-                altoMinimo: k ? 110 : 130,
-                itemBuilder: (c, i) => tarjeta(l[i]),
-              ),
+      body:
+          problema ??
+          Ancho(
+            max: 900,
+            child: ListaLlena(
+              itemCount: l.length,
+              gap: k ? 8 : 12,
+              padding: EdgeInsets.all(k ? 10 : 14),
+              altoMinimo: k ? 110 : 130,
+              itemBuilder: (c, i) => tarjeta(l[i]),
             ),
+          ),
     );
   }
 }

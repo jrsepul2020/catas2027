@@ -27,6 +27,14 @@ class TandasScreen extends ConsumerWidget {
         return ma != mb ? ma.compareTo(mb) : a.orden.compareTo(b.orden);
       });
 
+    final problema = avisoCarga(
+      ref,
+      que: 'Cargar tandas del día',
+      tablas: const ['tandas', 'mesas', 'tanda_muestras'],
+      vacio: l.isEmpty,
+      queHacerSiVacio:
+          'Sin tandas para este día. Cambia el chip de día, elige «Todos los días» o pulsa + para crear una.',
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tandas'),
@@ -40,26 +48,18 @@ class TandasScreen extends ConsumerWidget {
           const ChipEntorno(),
         ],
       ),
-      body: l.isEmpty
-          ? Vacio(
-              icono: Icons.format_list_numbered,
-              texto: 'Sin tandas para este día',
-              accion: FilledButton.tonalIcon(
-                onPressed: () => editarTanda(context, ref, null),
-                icon: const Icon(Icons.add),
-                label: const Text('Nueva tanda'),
-              ),
-            )
-          : Ancho(
-              max: 900,
-              child: ListaLlena(
-                itemCount: l.length,
-                gap: k ? 8 : 12,
-                padding: EdgeInsets.all(k ? 10 : 14),
-                altoMinimo: k ? 110 : 130,
-                itemBuilder: (c, i) => _TarjetaTanda(t: l[i]),
-              ),
+      body:
+          problema ??
+          Ancho(
+            max: 900,
+            child: ListaLlena(
+              itemCount: l.length,
+              gap: k ? 8 : 12,
+              padding: EdgeInsets.all(k ? 10 : 14),
+              altoMinimo: k ? 110 : 130,
+              itemBuilder: (c, i) => _TarjetaTanda(t: l[i]),
             ),
+          ),
     );
   }
 }

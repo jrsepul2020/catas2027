@@ -76,6 +76,23 @@ class SelInt extends Notifier<int?> {
 final concursoGuardadoProvider = NotifierProvider<SelInt, int?>(() => SelInt('concurso'));
 final diaGuardadoProvider = NotifierProvider<SelInt, int?>(() => SelInt('dia'));
 
+/// Tablas que la app escucha en realtime (y muestra en el panel de diagnóstico).
+const tablasApp = [
+  'concursos',
+  'categorias',
+  'dias_concurso',
+  'mesas',
+  'catadores',
+  'muestras',
+  'tandas',
+  'tanda_muestras',
+  'puntuaciones',
+  'medallas',
+  'dispositivos',
+  'registro_cambios',
+  'sync_estado',
+];
+
 // ---------------- Tablas en tiempo real ----------------
 final filasProvider = StreamProvider.family<List<Json>, String>((ref, tabla) async* {
   final c = await ref.watch(clienteProvider.future);
@@ -83,18 +100,77 @@ final filasProvider = StreamProvider.family<List<Json>, String>((ref, tabla) asy
     yield const [];
     return;
   }
-  if (tabla == 'registro_cambios') {
-    yield* c.from(tabla).stream(primaryKey: ['id']).order('creado_en').limit(300);
-  } else {
-    yield* c.from(tabla).stream(primaryKey: ['id']).order('id', ascending: true);
+  // Carga inicial con select: si falla, el error llega a la UI (no se traga).
+  // Luego el stream realtime mantiene la lista al día.
+  try {
+    final List<dynamic> inicial = tabla == 'registro_cambios'
+        ? await c.from(tabla).select().order('creado_en').limit(300)
+        : await c.from(tabla).select().order('id', ascending: true);
+    yield [for (final r in inicial) Map<String, dynamic>.from(r as Map)];
+  } catch (e, st) {
+    yield* Stream.error(e, st);
+    return;
   }
+  yield* (tabla == 'registro_cambios'
+      ? c.from(tabla).stream(primaryKey: ['id']).order('creado_en').limit(300)
+      : c.from(tabla).stream(primaryKey: ['id']).order('id', ascending: true));
 });
 
 List<T> _lista<T>(Ref ref, String tabla, T Function(Json) f, [int Function(T, T)? cmp]) {
-  final l = (ref.watch(filasProvider(tabla)).value ?? const []).map(f).toList();
+  final async = ref.watch(filasProvider(tabla));
+  // Si hay error y aún no hay datos, lista vacía; el error se lee en erroresTablasProvider.
+  final l = (async.value ?? const []).map(f).toList();
   if (cmp != null) l.sort(cmp);
   return l;
 }
+
+/// Errores de carga por tabla (mensaje legible). Vacío si todo va bien.
+final erroresTablasProvider = Provider<Map<String, String>>((ref) {
+  final m = <String, String>{};
+  for (final t in tablasApp) {
+    final a = ref.watch(filasProvider(t));
+    if (a.hasError) m[t] = a.error.toString();
+  }
+  return m;
+});
+
+/// Filas recibidas por tabla (null = aún cargando / sin valor).
+final conteoTablasProvider = Provider<Map<String, String>>((ref) {
+  final m = <String, String>{};
+  for (final t in tablasApp) {
+    final a = ref.watch(filasProvider(t));
+    if (a.isLoading && !a.hasValue) {
+      m[t] = '…';
+    } else if (a.hasError && !a.hasValue) {
+      m[t] = 'ERR';
+    } else {
+      m[t] = '${a.value?.length ?? 0}';
+    }
+  }
+  return m;
+});
+
+/// Preferencia local que fuerza mostrar/ocultar el panel de diagnóstico.
+class VerDiagnostico extends Notifier<bool?> {
+  @override
+  bool? build() => ref.read(prefsProvider).getBool('ver_diagnostico');
+
+  Future<void> set(bool v) async {
+    await ref.read(prefsProvider).setBool('ver_diagnostico', v);
+    state = v;
+  }
+}
+
+final verDiagnosticoProvider = NotifierProvider<VerDiagnostico, bool?>(VerDiagnostico.new);
+
+/// Modo pruebas: panel de diagnóstico. Preferencia local o sync_estado.modo_pruebas.
+final modoPruebasProvider = Provider<bool>((ref) {
+  final forzado = ref.watch(verDiagnosticoProvider);
+  if (forzado != null) return forzado;
+  final l = ref.watch(filasProvider('sync_estado')).value ?? const [];
+  if (l.isEmpty) return true; // sin fila aún: útil al montar el LOCAL
+  return l.first['modo_pruebas'] == true;
+});
 
 final cargandoProvider = Provider<bool>((ref) {
   for (final t in const ['mesas', 'catadores', 'muestras', 'tandas', 'tanda_muestras']) {

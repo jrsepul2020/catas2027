@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/backend.dart';
 import '../core/providers.dart';
+import 'theme.dart';
 
 bool esAncho(BuildContext c) => MediaQuery.sizeOf(c).width >= 900;
 
@@ -21,6 +22,23 @@ void aviso(BuildContext context, String msg, {bool error = false}) {
       duration: Duration(seconds: error ? 5 : 2),
     ),
   );
+}
+
+/// Cierra la sesión del entorno activo y vuelve al login.
+Future<void> cerrarSesion(BuildContext context, WidgetRef ref) async {
+  final e = ref.read(entornoProvider);
+  final ok = await confirmar(
+    context,
+    '¿Cerrar sesión?',
+    texto: 'Saldrás de ${e.largo}. Las conexiones URL/clave se quedan en este dispositivo.',
+    si: 'Cerrar sesión',
+  );
+  if (!ok || !context.mounted) return;
+  await ejecutar(context, () async {
+    final c = await ref.read(clienteProvider.future);
+    await c?.auth.signOut();
+  });
+  if (context.mounted) context.go('/login');
 }
 
 /// Ejecuta una acción mostrando el error si falla. Devuelve true si fue bien.
@@ -144,15 +162,24 @@ class ChipEntorno extends ConsumerWidget {
       if (ok) ref.read(entornoProvider.notifier).cambiar(e.otro);
     }
 
+    Future<void> toggleDiagnostico() async {
+      final nuevo = !ref.read(modoPruebasProvider);
+      await ref.read(verDiagnosticoProvider.notifier).set(nuevo);
+      if (context.mounted) {
+        aviso(context, nuevo ? 'Diagnóstico de datos: visible' : 'Diagnóstico de datos: oculto');
+      }
+    }
+
     if (esCompacto(context)) {
       // En teléfono solo el icono coloreado: deja sitio al título.
       return Padding(
         padding: const EdgeInsets.only(right: 6),
         child: Tooltip(
-          message: e.largo,
+          message: '${e.largo} · mantén pulsado: diagnóstico',
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: cambiar,
+            onLongPress: toggleDiagnostico,
             child: CircleAvatar(
               radius: 17,
               backgroundColor: color,
@@ -164,15 +191,30 @@ class ChipEntorno extends ConsumerWidget {
     }
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: ActionChip(
-        avatar: Icon(cloud ? Icons.cloud : Icons.dns, color: Colors.white, size: 22),
-        label: Text(
-          e.corto,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      child: GestureDetector(
+        onLongPress: toggleDiagnostico,
+        child: Material(
+          color: color,
+          shape: const StadiumBorder(),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: cambiar,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(cloud ? Icons.cloud : Icons.dns, color: Colors.white, size: 20),
+                  const SizedBox(width: 6),
+                  Text(
+                    e.corto,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        backgroundColor: color,
-        side: BorderSide.none,
-        onPressed: cambiar,
       ),
     );
   }
@@ -219,45 +261,63 @@ class ChipDia extends ConsumerWidget {
     final sel = ref.watch(diaIdProvider);
     final d = dias.where((x) => x.id == sel).firstOrNull;
     final k = esCompacto(context);
+    final etiqueta = d == null ? 'Todos' : (k ? 'D${dias.indexOf(d) + 1}' : d.nombre);
     return Padding(
       padding: EdgeInsets.only(right: k ? 2 : 6),
-      child: ActionChip(
-        visualDensity: VisualDensity.compact,
-        avatar: Icon(Icons.calendar_month, size: k ? 18 : 22, color: Colors.white),
-        label: Text(
-          d == null ? 'Todos' : (k ? 'D${dias.indexOf(d) + 1}' : d.nombre),
-          style: TextStyle(fontSize: k ? 13 : 16, fontWeight: FontWeight.w700, color: Colors.white),
-        ),
-        backgroundColor: Colors.white.withValues(alpha: 0.16),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.28)),
-        onPressed: () async {
-          final r = await showModalBottomSheet<int>(
-            context: context,
-            showDragHandle: true,
-            constraints: const BoxConstraints(maxWidth: 720),
-            builder: (s) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Día de trabajo', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-                  for (final x in dias)
-                    AccionHoja(
-                      icono: x.id == sel ? Icons.radio_button_checked : Icons.radio_button_off,
-                      titulo: x.nombre,
-                      subtitulo: x.fecha,
-                      onTap: () => Navigator.pop(s, x.id),
-                    ),
-                  AccionHoja(
-                    icono: sel == null ? Icons.radio_button_checked : Icons.radio_button_off,
-                    titulo: 'Todos los días',
-                    onTap: () => Navigator.pop(s, -1),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.18),
+        shape: StadiumBorder(side: BorderSide(color: Colors.white.withValues(alpha: 0.45))),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: () async {
+            final r = await showModalBottomSheet<int>(
+              context: context,
+              showDragHandle: true,
+              constraints: const BoxConstraints(maxWidth: 720),
+              builder: (s) {
+                final cs = Theme.of(s).colorScheme;
+                return SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Día de trabajo',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: cs.onSurface),
+                      ),
+                      for (final x in dias)
+                        AccionHoja(
+                          icono: x.id == sel ? Icons.radio_button_checked : Icons.radio_button_off,
+                          titulo: x.nombre,
+                          subtitulo: x.fecha,
+                          onTap: () => Navigator.pop(s, x.id),
+                        ),
+                      AccionHoja(
+                        icono: sel == null ? Icons.radio_button_checked : Icons.radio_button_off,
+                        titulo: 'Todos los días',
+                        onTap: () => Navigator.pop(s, -1),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
+            );
+            if (r != null) ref.read(diaGuardadoProvider.notifier).set(r);
+          },
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: k ? 10 : 14, vertical: k ? 6 : 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.calendar_month, size: k ? 18 : 22, color: Colors.white),
+                SizedBox(width: k ? 4 : 6),
+                Text(
+                  etiqueta,
+                  style: TextStyle(fontSize: k ? 13 : 16, fontWeight: FontWeight.w800, color: Colors.white),
+                ),
+              ],
             ),
-          );
-          if (r != null) ref.read(diaGuardadoProvider.notifier).set(r);
-        },
+          ),
+        ),
       ),
     );
   }
@@ -278,7 +338,11 @@ class Vacio extends StatelessWidget {
         children: [
           Icon(icono, size: 64, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 16),
-          Text(texto, textAlign: TextAlign.center, style: const TextStyle(fontSize: 17)),
+          Text(
+            texto,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 17, color: Theme.of(context).colorScheme.onSurface),
+          ),
           if (accion != null) ...[const SizedBox(height: 24), accion!],
         ],
       ),
@@ -286,20 +350,158 @@ class Vacio extends StatelessWidget {
   );
 }
 
-/// Contenedor centrado con ancho máximo: en ordenador no se estira.
+/// Recuadro legible cuando una carga falla o llega vacía (nunca pantalla gris muda).
+class RecuadroProblema extends StatelessWidget {
+  const RecuadroProblema({
+    super.key,
+    required this.que,
+    this.error,
+    required this.queHacer,
+    this.icono = Icons.warning_amber_rounded,
+  });
+  final String que;
+  final String? error;
+  final String queHacer;
+  final IconData icono;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Card(
+            color: Paleta.rojoPastel,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(icono, color: Paleta.rojoOscuro, size: 28),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          que,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Paleta.rojoOscuro),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (error != null && error!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Error',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 4),
+                    SelectableText(
+                      error!,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Paleta.texto),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Text(
+                    'Qué hacer',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    queHacer,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Paleta.texto),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Si hay error en alguna [tablas] o [vacio], devuelve el recuadro; si no, null.
+Widget? avisoCarga(
+  WidgetRef ref, {
+  required String que,
+  required List<String> tablas,
+  bool vacio = false,
+  required String queHacerSiVacio,
+  String queHacerSiError =
+      'Revisa la conexión CLOUD/LOCAL, que la sesión siga abierta y pulsa de nuevo la pantalla. '
+      'Si el error menciona una columna, el esquema Local puede estar desfasado: vuelve a aplicar el SQL completo.',
+}) {
+  final errores = ref.watch(erroresTablasProvider);
+  for (final t in tablas) {
+    final e = errores[t];
+    if (e != null) {
+      return RecuadroProblema(que: '$que (tabla $t)', error: e, queHacer: queHacerSiError);
+    }
+  }
+  if (vacio) {
+    return RecuadroProblema(que: que, error: null, icono: Icons.inbox_outlined, queHacer: queHacerSiVacio);
+  }
+  return null;
+}
+
+/// Contador de filas recibidas por tabla (solo modo pruebas).
+class PanelDiagnostico extends ConsumerWidget {
+  const PanelDiagnostico({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(modoPruebasProvider)) return const SizedBox.shrink();
+    final conteos = ref.watch(conteoTablasProvider);
+    final errores = ref.watch(erroresTablasProvider);
+    final dia = ref.watch(diaIdProvider);
+    final conc = ref.watch(concursoIdProvider);
+    final tandas = ref.watch(tandasProvider).length;
+    final texto = [
+      'Diagnóstico · concurso=$conc · día=${dia ?? "todos"} · tandasFiltro=$tandas',
+      for (final e in conteos.entries) '${e.key}:${e.value}${errores.containsKey(e.key) ? "!" : ""}',
+    ].join(' · ');
+    return Material(
+      color: Paleta.amarilloPastel,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            texto,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Paleta.amarilloOscuro),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Contenedor centrado con ancho máximo y altura acotada (para listas con Expanded).
 class Ancho extends StatelessWidget {
   const Ancho({super.key, required this.child, this.max = 1100});
   final Widget child;
   final double max;
+
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.topCenter,
-    child: ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: max),
-      // Ancho completo del tope: las listas con Expanded pueden llenar la altura.
-      child: SizedBox(width: double.infinity, child: child),
-    ),
-  );
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth.isFinite ? c.maxWidth.clamp(0.0, max) : max;
+        // Importante: acotar también la altura. Un SizedBox(width: infinity) sin altura
+        // generaba restricciones inválidas y las listas salían con altura 0 (pantalla gris).
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(width: w, height: c.hasBoundedHeight ? c.maxHeight : null, child: child),
+        );
+      },
+    );
+  }
 }
 
 /// Lista vertical que reparte la altura entre pocos ítems (sin huecos vacíos).
@@ -324,24 +526,29 @@ class ListaLlena extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (itemCount <= 0) return const SizedBox.shrink();
-    if (itemCount <= maxSinScroll) {
-      return Padding(
-        padding: padding,
-        child: Column(
-          children: [
-            for (var i = 0; i < itemCount; i++) ...[
-              if (i > 0) SizedBox(height: gap),
-              Expanded(child: itemBuilder(context, i)),
-            ],
-          ],
-        ),
-      );
-    }
-    return ListView.separated(
-      padding: padding,
-      itemCount: itemCount,
-      separatorBuilder: (_, _) => SizedBox(height: gap),
-      itemBuilder: (c, i) => SizedBox(height: altoMinimo, child: itemBuilder(c, i)),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final puedeExpandir = c.hasBoundedHeight && itemCount <= maxSinScroll;
+        if (puedeExpandir) {
+          return Padding(
+            padding: padding,
+            child: Column(
+              children: [
+                for (var i = 0; i < itemCount; i++) ...[
+                  if (i > 0) SizedBox(height: gap),
+                  Expanded(child: itemBuilder(context, i)),
+                ],
+              ],
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: padding,
+          itemCount: itemCount,
+          separatorBuilder: (_, _) => SizedBox(height: gap),
+          itemBuilder: (ctx, i) => SizedBox(height: altoMinimo, child: itemBuilder(ctx, i)),
+        );
+      },
     );
   }
 }
@@ -599,7 +806,11 @@ Future<bool> hojaFormulario(
             children: [
               Text(
                 titulo,
-                style: TextStyle(fontSize: k ? 22 : 26, fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  fontSize: k ? 22 : 26,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(c).colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 18),
               ...campos,

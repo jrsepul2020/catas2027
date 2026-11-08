@@ -15,8 +15,26 @@ class DirectoScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mesas = ref.watch(mesasProvider);
+    final tandas = ref.watch(tandasProvider);
     final inc = ref.watch(incidenciasAbiertasProvider);
     final k = esCompacto(context);
+    final problema =
+        avisoCarga(
+          ref,
+          que: 'Cargar el directo (mesas y tandas del día)',
+          tablas: const ['mesas', 'tandas', 'tanda_muestras', 'catadores', 'puntuaciones'],
+          vacio: mesas.isEmpty,
+          queHacerSiVacio: 'No hay mesas en este concurso. Créalas en Mesas o revisa el concurso elegido.',
+        ) ??
+        (mesas.isNotEmpty && tandas.isEmpty
+            ? RecuadroProblema(
+                que: 'Directo sin tandas para el día seleccionado',
+                error: 'mesas=${mesas.length}, tandas filtradas=0 (mira el chip de día y el panel Diagnóstico)',
+                queHacer:
+                    'Pulsa el chip del calendario y elige el día donde están las tandas (o «Todos los días»). '
+                    'Si el diagnóstico muestra tandas:0, la tabla no está llegando desde Cloud.',
+              )
+            : null);
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -46,18 +64,18 @@ class DirectoScreen extends ConsumerWidget {
           const ChipEntorno(),
         ],
       ),
-      body: mesas.isEmpty
-          ? const Vacio(icono: Icons.live_tv, texto: 'Sin mesas')
-          : Ancho(
-              max: 1100,
-              child: ListaLlena(
-                itemCount: mesas.length,
-                gap: k ? 8 : 12,
-                padding: EdgeInsets.all(k ? 10 : 14),
-                altoMinimo: k ? 110 : 130,
-                itemBuilder: (c, i) => FilaDirecto(mesaId: mesas[i].id),
-              ),
+      body:
+          problema ??
+          Ancho(
+            max: 1100,
+            child: ListaLlena(
+              itemCount: mesas.length,
+              gap: k ? 8 : 12,
+              padding: EdgeInsets.all(k ? 10 : 14),
+              altoMinimo: k ? 110 : 130,
+              itemBuilder: (c, i) => FilaDirecto(mesaId: mesas[i].id),
             ),
+          ),
     );
   }
 }

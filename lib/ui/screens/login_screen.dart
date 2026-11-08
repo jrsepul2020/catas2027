@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/backend.dart';
 import '../../core/providers.dart';
+import '../theme.dart';
 import '../widgets.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -16,34 +17,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _email = TextEditingController();
   final _pass = TextEditingController();
   bool _cargando = false;
+  bool _guardarPass = false;
+  bool _verPass = false;
 
   @override
   void initState() {
     super.initState();
-    _email.text = ref.read(prefsProvider).getString('ultimo_email') ?? '';
+    _cargarGuardados();
   }
 
-  Future<void> _entrar({bool registro = false}) async {
+  void _cargarGuardados() {
+    final prefs = ref.read(prefsProvider);
+    final b = ref.read(backendsProvider);
+    final e = ref.read(entornoProvider);
+    _email.text = prefs.getString('ultimo_email') ?? '';
+    _guardarPass = b.recordarPass(e);
+    _pass.text = b.passGuardada(e) ?? '';
+  }
+
+  Future<void> _entrar() async {
     final c = await ref.read(clienteProvider.future);
-    if (c == null) return;
+    if (c == null) {
+      if (mounted) {
+        aviso(context, 'Primero configura la URL y la clave en Conexiones', error: true);
+        context.push('/configuracion');
+      }
+      return;
+    }
     setState(() => _cargando = true);
     final email = _email.text.trim();
+    final pass = _pass.text;
+    final e = ref.read(entornoProvider);
+    final b = ref.read(backendsProvider);
     await ref.read(prefsProvider).setString('ultimo_email', email);
     if (!mounted) return;
-    await ejecutar(context, () async {
-      if (registro) {
-        final r = await c.auth.signUp(email: email, password: _pass.text);
-        if (r.session == null && mounted) aviso(context, 'Revisa tu correo para confirmar la cuenta');
-      } else {
-        await c.auth.signInWithPassword(email: email, password: _pass.text);
+    final ok = await ejecutar(context, () async {
+      await c.auth.signInWithPassword(email: email, password: pass);
+      await b.setRecordarPass(e, recordar: _guardarPass, pass: pass);
+      // Guarda conexiones en el usuario (Cloud/Local) y trae las del otro entorno.
+      try {
+        await b.aplicarConexionesDelUsuario(c, e);
+        await b.subirConexionesAlUsuario(c);
+      } catch (_) {
+        // El login ya fue bien; la sync de conexiones no debe bloquear.
       }
     });
+    if (ok) ref.read(revisionProvider.notifier).subir();
     if (mounted) setState(() => _cargando = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final e = ref.watch(entornoProvider);
+    final cfg = ref.watch(backendsProvider).config(e);
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -55,12 +82,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(Icons.wine_bar, size: 96, color: Theme.of(context).colorScheme.primary),
+                    Icon(Icons.wine_bar, size: 96, color: cs.primary),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Virtus Catas 2027',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
+                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: cs.onSurface),
                     ),
                     const SizedBox(height: 24),
                     SegmentedButton<Entorno>(
@@ -69,44 +96,64 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ButtonSegment(value: Entorno.cloud, icon: Icon(Icons.cloud), label: Text('CLOUD')),
                       ],
                       selected: {e},
-                      onSelectionChanged: (s) => ref.read(entornoProvider.notifier).cambiar(s.first),
+                      onSelectionChanged: (s) {
+                        ref.read(entornoProvider.notifier).cambiar(s.first);
+                        setState(_cargarGuardados);
+                      },
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      ref.read(backendsProvider).config(e).url,
+                      cfg.completa ? cfg.urlLimpia : 'Sin conexión configurada',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Theme.of(context).colorScheme.outline),
+                      style: TextStyle(color: cfg.completa ? cs.onSurfaceVariant : Paleta.rojo, fontSize: 13),
+                    ),
+                    Text(
+                      'Origen: ${cfg.origen.texto}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                     ),
                     const SizedBox(height: 24),
                     TextField(
                       controller: _email,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
-                      style: const TextStyle(fontSize: 19),
+                      style: TextStyle(fontSize: 19, color: cs.onSurface),
                       decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.person)),
                     ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: _pass,
-                      obscureText: true,
+                      obscureText: !_verPass,
                       autofillHints: const [AutofillHints.password],
-                      style: const TextStyle(fontSize: 19),
+                      style: TextStyle(fontSize: 19, color: cs.onSurface),
                       onSubmitted: (_) => _entrar(),
-                      decoration: const InputDecoration(labelText: 'Contraseña', prefixIcon: Icon(Icons.lock)),
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña',
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _verPass = !_verPass),
+                          icon: Icon(_verPass ? Icons.visibility_off : Icons.visibility),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _guardarPass,
+                      onChanged: (v) => setState(() => _guardarPass = v ?? false),
+                      title: Text(
+                        'Guardar contraseña en este dispositivo',
+                        style: TextStyle(fontSize: 15, color: cs.onSurface),
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                    const SizedBox(height: 16),
                     FilledButton.icon(
                       onPressed: _cargando ? null : _entrar,
                       icon: _cargando
                           ? const SizedBox.square(dimension: 24, child: CircularProgressIndicator(strokeWidth: 3))
                           : const Icon(Icons.login),
                       label: const Text('Entrar'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _cargando ? null : () => _entrar(registro: true),
-                      icon: const Icon(Icons.person_add),
-                      label: const Text('Crear cuenta'),
                     ),
                     const SizedBox(height: 12),
                     TextButton.icon(

@@ -182,7 +182,7 @@ ThemeData tema({bool compacto = false}) {
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: SegmentedButton.styleFrom(
         minimumSize: Size(44, compacto ? 44 : 56),
-        textStyle: TextStyle(fontSize: compacto ? 14 : 17, fontWeight: FontWeight.w700),
+        textStyle: TextStyle(fontSize: compacto ? 14 : 17, fontWeight: FontWeight.w700, color: cs.onSurface),
         foregroundColor: cs.onSurface,
         selectedForegroundColor: cs.onPrimaryContainer,
         selectedBackgroundColor: cs.primaryContainer,
