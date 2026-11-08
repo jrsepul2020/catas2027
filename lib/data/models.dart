@@ -89,6 +89,19 @@ class Catador {
   bool get conectado => r['activo'] ?? false;
 }
 
+/// Asignación de un catador a mesa/puesto/rol en un día (solo CLOUD).
+class Asignacion {
+  Asignacion(this.r);
+  final Json r;
+  int get id => _i(r['id']);
+  int get diaId => _i(r['dia_id']);
+  int get catadorId => _i(r['catador_id']);
+  int get mesaId => _i(r['mesa_id']);
+  int get puesto => _i(r['puesto']);
+  String get rol => _s(r['rol'], 'catador');
+  int? get tabletId => _in(r['tablet_id']);
+}
+
 class Muestra {
   Muestra(this.r);
   final Json r;

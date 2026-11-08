@@ -53,14 +53,26 @@ final datos = <String, List<Json>>{
       {
         'id': i,
         'nombre': 'Catador con nombre largo $i',
-        'rol': i % 5 == 1 ? 'presidente' : 'catador',
-        'mesa_id': (i - 1) ~/ 5 + 1,
-        'mesa': (i - 1) ~/ 5 + 1,
-        'puesto': (i - 1) % 5 + 1,
+        // En CLOUD mesa/puesto/rol se ignoran; vienen de asignaciones.
+        'rol': 'catador',
         'activo': i < 4,
         'pais_codigo': 'ES',
         'presente': i != 3,
       },
+  ],
+  'asignaciones': [
+    for (var i = 1; i <= 15; i++)
+      {
+        'id': i,
+        'dia_id': 1,
+        'catador_id': i,
+        'mesa_id': (i - 1) ~/ 5 + 1,
+        'puesto': (i - 1) % 5 + 1,
+        'rol': i % 5 == 1 ? 'presidente' : 'catador',
+      },
+  ],
+  'sync_estado': [
+    {'id': 1, 'dia_id': 1, 'estado': 'cargado', 'modo_pruebas': true, 'cuadre_ok': false},
   ],
   'muestras': [
     for (var i = 1; i <= 18; i++)

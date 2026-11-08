@@ -39,8 +39,10 @@ begin
   perform set_config('virtus.reabrir', 'on', true);
   perform set_config('virtus.sync', 'on', true);
 
-  update public.dispositivos set catador_id = null;
-  update public.catadores set activo = false, mesa_id = null, mesa = null, puesto = null, rol = 'catador';
+  update public.dispositivos set catador_id = null where id is not null;
+  update public.catadores
+     set activo = false, mesa_id = null, mesa = null, puesto = null, rol = 'catador'
+   where id is not null;
 
   truncate table
     public.puntuaciones,
@@ -148,9 +150,17 @@ begin
     end loop;
   end loop;
 
-  -- Asegurar que Cloud no usa mesa/puesto/rol en catadores
+  -- Asegurar que Cloud no usa mesa/puesto/rol en catadores (WHERE obligatorio).
+  -- La versión canónica queda en 20261108210000 (reemplaza esta función).
   update public.catadores
-     set mesa_id = null, mesa = null, puesto = null, rol = 'catador';
+     set mesa_id = null, mesa = null, puesto = null, rol = 'catador'
+   where id is not null
+     and (
+       mesa_id is not null
+       or mesa is not null
+       or puesto is not null
+       or rol is distinct from 'catador'
+     );
 
   return jsonb_build_object('asignaciones', v_n, 'dia_id', p_dia_id, 'mesas', cardinality(v_mesas));
 end $$;

@@ -51,7 +51,11 @@ final usuarioIdProvider = Provider<String?>((ref) => ref.watch(sesionProvider.se
 
 final repoProvider = Provider<Repo?>((ref) {
   final c = ref.watch(clienteProvider).value;
-  return c == null ? null : Repo(c);
+  if (c == null) return null;
+  final local = ref.watch(entornoProvider) == Entorno.local;
+  // diaId solo para CLOUD (asignaciones). En LOCAL los puestos van en catadores.
+  final dia = local ? null : ref.watch(diaIdProvider);
+  return Repo(c, esLocal: local, diaId: dia);
 });
 
 // ---------------- Selección persistente (por entorno) ----------------
@@ -83,6 +87,7 @@ const tablasApp = [
   'dias_concurso',
   'mesas',
   'catadores',
+  'asignaciones',
   'muestras',
   'tandas',
   'tanda_muestras',
@@ -94,42 +99,89 @@ const tablasApp = [
 ];
 
 // ---------------- Tablas en tiempo real ----------------
+/// Carga REST primero y mantiene ese snapshot si Realtime falla (p. ej. 401 JWT).
+/// Realtime sigue siendo la vía principal; el reintento es de suscripción, no un poll.
 final filasProvider = StreamProvider.family<List<Json>, String>((ref, tabla) async* {
   final c = await ref.watch(clienteProvider.future);
   if (c == null || ref.watch(usuarioIdProvider) == null) {
     yield const [];
     return;
   }
-  // Carga inicial con select: si falla, el error llega a la UI (no se traga).
-  // Luego el stream realtime mantiene la lista al día.
-  try {
-    final List<dynamic> inicial = tabla == 'registro_cambios'
+
+  Future<List<Json>> cargarRest() async {
+    final List<dynamic> rows = tabla == 'registro_cambios'
         ? await c.from(tabla).select().order('creado_en').limit(300)
         : await c.from(tabla).select().order('id', ascending: true);
-    yield [for (final r in inicial) Map<String, dynamic>.from(r as Map)];
+    return [for (final r in rows) Map<String, dynamic>.from(r as Map)];
+  }
+
+  List<Json> actual;
+  try {
+    actual = await cargarRest();
   } catch (e, st) {
+    // Solo el fallo REST inicial es fatal para la UI.
     yield* Stream.error(e, st);
     return;
   }
-  yield* (tabla == 'registro_cambios'
-      ? c.from(tabla).stream(primaryKey: ['id']).order('creado_en').limit(300)
-      : c.from(tabla).stream(primaryKey: ['id']).order('id', ascending: true));
+  yield actual;
+
+  var fallosRtSeguidos = 0;
+  while (true) {
+    try {
+      final crudo = tabla == 'registro_cambios'
+          ? c.from(tabla).stream(primaryKey: ['id']).order('creado_en').limit(300)
+          : c.from(tabla).stream(primaryKey: ['id']).order('id', ascending: true);
+      // Nunca propagar errores de Realtime (p. ej. WebSocket 401) al StreamProvider:
+      // la UI debe quedarse con el snapshot REST.
+      final stream = crudo.handleError((_) {});
+      await for (final rows in stream) {
+        fallosRtSeguidos = 0;
+        actual = [for (final r in rows) Map<String, dynamic>.from(r as Map)];
+        yield actual;
+      }
+      // Canal cerrado sin error: reabrir.
+      fallosRtSeguidos++;
+    } catch (_) {
+      fallosRtSeguidos++;
+    }
+
+    // Un refresh REST puntual tras fallo de socket (no periódico).
+    try {
+      actual = await cargarRest();
+      yield actual;
+    } catch (_) {
+      // Conservamos el último snapshot bueno.
+    }
+
+    final secs = (8 * (1 << fallosRtSeguidos.clamp(0, 3))).clamp(8, 64);
+    await Future<void>.delayed(Duration(seconds: secs));
+  }
 });
 
 List<T> _lista<T>(Ref ref, String tabla, T Function(Json) f, [int Function(T, T)? cmp]) {
   final async = ref.watch(filasProvider(tabla));
-  // Si hay error y aún no hay datos, lista vacía; el error se lee en erroresTablasProvider.
+  // Preferir el último valor aunque el AsyncValue diga error (Realtime 401, etc.).
   final l = (async.value ?? const []).map(f).toList();
   if (cmp != null) l.sort(cmp);
   return l;
 }
 
-/// Errores de carga por tabla (mensaje legible). Vacío si todo va bien.
+/// Errores que bloquean la UI: solo si la tabla no tiene ningún dato cargado.
 final erroresTablasProvider = Provider<Map<String, String>>((ref) {
   final m = <String, String>{};
   for (final t in tablasApp) {
     final a = ref.watch(filasProvider(t));
-    if (a.hasError) m[t] = a.error.toString();
+    if (a.hasError && !a.hasValue) m[t] = a.error.toString();
+  }
+  return m;
+});
+
+/// Avisos no bloqueantes (p. ej. Realtime 401 con datos REST ya cargados).
+final avisosTablasProvider = Provider<Map<String, String>>((ref) {
+  final m = <String, String>{};
+  for (final t in tablasApp) {
+    final a = ref.watch(filasProvider(t));
+    if (a.hasError && a.hasValue) m[t] = a.error.toString();
   }
   return m;
 });
@@ -221,6 +273,12 @@ final diasProvider = Provider<List<Dia>>(
 /// true si se trabaja contra el servidor LOCAL de la sede.
 final esLocalProvider = Provider<bool>((ref) => ref.watch(entornoProvider) == Entorno.local);
 
+/// En CLOUD solo se editan puestos en modo pruebas (App 1 es la dueña de asignaciones).
+final puedeEditarPuestosProvider = Provider<bool>((ref) {
+  if (ref.watch(esLocalProvider)) return true;
+  return ref.watch(modoPruebasProvider);
+});
+
 /// En LOCAL: día bajado en la última sincronización (sync_estado.dia_id).
 final diaLocalProvider = Provider<int?>((ref) {
   final l = ref.watch(filasProvider('sync_estado')).value ?? const [];
@@ -249,9 +307,45 @@ final mesasProvider = Provider<List<Mesa>>(
   ).where((m) => _delConcurso(ref, m.concursoId)).toList(),
 );
 
-final catadoresProvider = Provider<List<Catador>>(
-  (ref) => _lista(ref, 'catadores', Catador.new, (a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase())),
+final asignacionesProvider = Provider<List<Asignacion>>(
+  (ref) => _lista(ref, 'asignaciones', Asignacion.new, (a, b) => a.id.compareTo(b.id)),
 );
+
+/// Catadores con mesa/puesto/rol efectivos del día.
+/// LOCAL: ya vienen aplanados en la tabla. CLOUD: se cruzan con asignaciones del día
+/// (las columnas mesa/puesto/rol de catadores en Cloud se ignoran).
+final catadoresProvider = Provider<List<Catador>>((ref) {
+  final personas = _lista(
+    ref,
+    'catadores',
+    Catador.new,
+    (a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()),
+  );
+  if (ref.watch(esLocalProvider)) return personas;
+
+  final dia = ref.watch(diaIdProvider);
+  if (dia == null) {
+    // Sin día: solo persona (sin mesa)
+    return [
+      for (final c in personas) Catador({...c.r, 'mesa_id': null, 'mesa': null, 'puesto': null, 'rol': 'catador'}),
+    ];
+  }
+  final asigs = {for (final a in ref.watch(asignacionesProvider).where((a) => a.diaId == dia)) a.catadorId: a};
+  final mesas = ref.watch(mesaPorIdProvider);
+  return [
+    for (final c in personas)
+      if (asigs[c.id] != null)
+        Catador({
+          ...c.r,
+          'mesa_id': asigs[c.id]!.mesaId,
+          'mesa': mesas[asigs[c.id]!.mesaId]?.numero,
+          'puesto': asigs[c.id]!.puesto,
+          'rol': asigs[c.id]!.rol,
+        })
+      else
+        Catador({...c.r, 'mesa_id': null, 'mesa': null, 'puesto': null, 'rol': 'catador'}),
+  ];
+});
 
 final muestrasProvider = Provider<List<Muestra>>((ref) {
   final l = _lista(

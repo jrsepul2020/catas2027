@@ -103,14 +103,14 @@ android/                    applicationId virtus.apk (Play); namespace com.virtu
 | `categorias` | id int, `codigo` único | `ficha` jsonb = criterios de puntuación de las tablets |
 | `dias_concurso` | id int | `concurso_id`, `fecha`, `nombre` |
 | `mesas` | id int | `numero`, `nombre`, `concurso_id` |
-| `catadores` | id int | `nombre` (completo), `rol` ('catador'/'presidente'), `mesa_id`, `mesa` (= número de mesa, mantener coherente), `puesto` smallint, `activo` (**tablet conectada**, lo gestiona la app de tablets), `presente` (añadido), `pais_codigo`, `titulo` |
+| `catadores` | id int | Persona: `nombre`, `pais_codigo`, `titulo`. En **CLOUD** `mesa_id`/`mesa`/`puesto`/`rol` se **ignoran** (viven en `asignaciones`). En **LOCAL** tras bajar un día sí llevan mesa/puesto/rol aplanados. `activo` = tablet conectada; `presente` (añadido). |
 | `dispositivos` | id int | tablet ↔ catador (no se toca desde esta app) |
 | `muestras` | id int, `codigo_ciego` único | `codigo_texto`, `categoria_id`, `activo`. Códigos numéricos **< 1000 no premian** |
 | `tandas` | id int | `numero` (p. ej. 901), `estado` 'pendiente'/'abierta'/'cerrada', `mesa_id`, `categoria_id`, `dia_id`, `orden` (añadido: orden de trabajo) |
 | `tanda_muestras` | id int, único (`tanda_id`,`muestra_id`) | `orden` **1..n contiguo** (lo usan las tablets), `estado` 'pendiente'/'activa'/'completada'/'incidencia'/'pospuesta', `incidencia_motivo` |
 | `puntuaciones` | id int, único (`catador_id`,`muestra_id`) | `scores` jsonb (desglose de la ficha; las manuales llevan `{"manual":true}`), `total` numeric, `estado` 'borrador'/'enviada'/'aprobada' |
 | `medallas` | id int, único `muestra_id` | medalla **oficial**: 'gran_oro'/'oro'/'plata'/'sin_medalla' |
-| `asignaciones` | id int | asignación por día (no se usa aún en la UI) |
+| `asignaciones` | id int | CLOUD: una fila por catador y día (`dia_id`, `catador_id`, `mesa_id`, `puesto`, `rol`). Puesto 1 = presidente. No se baja a LOCAL. |
 | `registro_cambios` | uuid | auditoría: `accion`, `tabla`, `registro_id`, `antes`, `despues`, `motivo`, `dia_id` |
 | `sync_estado` | id = 1 | en LOCAL: `dia_id` = día bajado; `estado` 'vacio'/'cargado'/'subido'/'verificado' |
 | `sync_borrados` | bigint | (añadido) borrados registrados por trigger para la sincronización |
@@ -181,24 +181,25 @@ Escrituras directas (tablas con política): `estadoTanda`, `puntuarManual` (upse
 
 ## 9. Sincronización CLOUD ⇄ LOCAL
 
-Escenario: en la sede hay un **Supabase LOCAL** (Docker, `supabase start`) en la WiFi; las tablets y
-esta app trabajan contra él; antes se **baja** un día desde cloud y después se **sube**.
+Escenario: en la sede hay un **Supabase LOCAL** en la WiFi; las tablets y esta app trabajan contra
+él. La noche anterior se **baja** un día; al cerrar se **suben** solo las notas.
 
-- `SyncService.sincronizar(Direccion, {completa, diaBajar})`. Direcciones: `cloudALocal` (Bajar),
-  `localACloud` (Subir), `ambas`.
-- **Bajar solo un día** (`diaBajar`): `_filtrosDia()` limita tandas, tanda_muestras, muestras,
-  puntuaciones, medallas, asignaciones, registro_cambios y dias_concurso a ese día; mesas, catadores,
-  categorías y concursos van completos. Al terminar escribe `sync_estado.dia_id` en LOCAL.
-- Incremental por marcas (`updated_at` / `creado_en` / `borrado_en`) guardadas en prefs por
-  entorno+tabla(+día). «Revisión completa» las ignora.
-- El **destino decide** con `sync_aplicar(tabla, filas)`: insert … on conflict … **solo si
-  `excluded.updated_at` es más nuevo** (last-write-wins sin rebotes; el trigger respeta el
-  `updated_at` que llega). Claves naturales: puntuaciones (`catador_id`,`muestra_id`),
-  tanda_muestras (`tanda_id`,`muestra_id`), medallas (`muestra_id`).
-- Borrados vía `sync_borrados` → `sync_borrar` (solo si el destino no cambió después).
-- Tras bajar, `sync_preparar_local()` sube las secuencias LOCAL a ≥ 1.000.000 para que las altas
-  locales no choquen con ids de cloud.
-- **Nunca** borrar datos de otros días en LOCAL: generaría borrados que viajarían a cloud.
+- `SyncService.bajarDia` / `subirDia`. Ya no hay sync incremental multi-tabla ni «Ambas».
+- **Bajar**: valida el día en CLOUD (4–5 catadores/mesa, 1 presidente, puestos únicos, tandas con
+  muestras, AOVE coherente…); si falla, no toca LOCAL. Si hay notas sin subir → bloquea (en modo
+  pruebas se puede forzar). Si hay cambios locales de puestos desde la última bajada → avisa y pide
+  confirmación. Luego `sync_vaciar_local` y carga: concurso, categorías, mesas, tandas del día,
+  tanda_muestras, muestras, **catadores aplanados** desde `asignaciones` (mesa/puesto/rol), y
+  **dispositivos** con tablet = `(nº mesa − 1) × 5 + puesto`. No baja asignaciones, medallas,
+  dias_concurso, bodegas, etc. Repetible: bajar N veces = mismo resultado.
+- **Subir**: solo `puntuaciones` (`sync_upsert_puntuaciones` por catador+muestra) y
+  `registro_cambios`. Nunca estructura ni catadores ni asignaciones. Cuadre automático → `CUADRA`
+  o lista de faltas; vaciar LOCAL solo si `cuadre_ok`.
+- Cambios de última hora en LOCAL (mover/presidente/quitar): recalculan dispositivos con la misma
+  regla; no se suben a Cloud. En CLOUD la App 2 no mueve puestos (salvo modo pruebas → escribe
+  `asignaciones`).
+- Generador de prueba: RPC `generar_asignaciones_prueba(dia)` (puesto 1 = presidente; no rellena
+  mesa/puesto en `catadores`).
 
 ## 10. UI: reglas de diseño (IMPORTANTE)
 

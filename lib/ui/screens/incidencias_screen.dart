@@ -202,7 +202,7 @@ class _IncidenciasScreenState extends ConsumerState<IncidenciasScreen> {
         foregroundColor: Colors.white,
         onPressed: () => nuevaIncidencia(context, ref),
         icon: const Icon(Icons.add_alert),
-        label: const Text('Nueva'),
+        label: const Text('Marcar'),
       ),
       body: Ancho(
         max: 900,

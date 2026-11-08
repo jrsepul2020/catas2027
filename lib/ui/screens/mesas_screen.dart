@@ -37,21 +37,10 @@ class MesasScreen extends ConsumerWidget {
       que: 'Cargar mesas',
       tablas: const ['mesas', 'tandas', 'catadores'],
       vacio: mesas.isEmpty,
-      queHacerSiVacio: 'Sin mesas. Pulsa + para crear la primera, o revisa el concurso elegido.',
+      queHacerSiVacio: 'Sin mesas en este concurso. Revisa el concurso elegido o sincroniza desde Cloud.',
     );
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mesas'),
-        actions: [
-          IconButton(
-            tooltip: 'Nueva mesa',
-            onPressed: () => editarMesa(context, ref, null),
-            icon: const Icon(Icons.add),
-          ),
-          const ChipDia(),
-          const ChipEntorno(),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Mesas'), actions: const [ChipDia(), ChipEntorno()]),
       body:
           problema ??
           (cols == 1
@@ -162,22 +151,19 @@ class _TarjetaMesa extends ConsumerWidget {
   }
 }
 
-Future<void> editarMesa(BuildContext context, WidgetRef ref, Mesa? m) async {
+Future<void> editarMesa(BuildContext context, WidgetRef ref, Mesa m) async {
   final repo = ref.read(repoProvider)!;
-  final siguiente = ref.read(mesasProvider).fold<int>(0, (a, b) => b.numero > a ? b.numero : a) + 1;
-  final numero = TextEditingController(text: '${m?.numero ?? siguiente}');
-  final nombre = TextEditingController(text: m?.r['nombre'] ?? '');
+  final numero = TextEditingController(text: '${m.numero}');
+  final nombre = TextEditingController(text: m.r['nombre'] ?? '');
   await hojaFormulario(
     context,
-    titulo: m == null ? 'Nueva mesa' : 'Editar mesa',
+    titulo: 'Editar mesa',
     campos: [Campo(numero, 'Número', numero: true), Campo(nombre, 'Nombre (opcional)')],
-    borrar: m == null ? null : () => repo.borrar('mesas', m.id),
+    borrar: () => repo.borrar('mesas', m.id),
     guardar: () async {
-      final n = int.tryParse(numero.text) ?? siguiente;
+      final n = int.tryParse(numero.text) ?? m.numero;
       final d = {'numero': n, 'nombre': nombre.text.trim().isEmpty ? 'Mesa $n' : nombre.text.trim()};
-      m == null
-          ? await repo.insertar('mesas', {...d, 'concurso_id': ref.read(concursoIdProvider)})
-          : await repo.actualizar('mesas', m.id, d);
+      await repo.actualizar('mesas', m.id, d);
     },
   );
 }
@@ -266,11 +252,17 @@ class PuestosMesa extends ConsumerWidget {
       c: c,
       fila: fila,
       repetido: repetidos.contains(c.puesto),
-      onSoltar: (otro) => ejecutar(
-        context,
-        () => ref.read(repoProvider)!.intercambiarPuestos(otro, c.id),
-        ok: 'Puestos intercambiados',
-      ),
+      onSoltar: (otro) {
+        if (!ref.read(puedeEditarPuestosProvider)) {
+          aviso(context, 'En CLOUD los puestos los gestiona la App 1');
+          return;
+        }
+        ejecutarConAvisos(
+          context,
+          () => ref.read(repoProvider)!.intercambiarPuestos(otro, c.id),
+          ok: 'Puestos intercambiados',
+        );
+      },
       onTap: () => opcionesCatador(context, ref, c),
     );
 
@@ -287,11 +279,12 @@ class PuestosMesa extends ConsumerWidget {
                   style: TextStyle(fontSize: k ? 13 : 16, color: cs.onSurfaceVariant),
                 ),
               ),
-              TextButton.icon(
-                onPressed: () => _asignarCatador(context, ref),
-                icon: const Icon(Icons.person_add, size: 20),
-                label: const Text('Añadir'),
-              ),
+              if (ref.watch(puedeEditarPuestosProvider))
+                TextButton.icon(
+                  onPressed: () => _asignarCatador(context, ref),
+                  icon: const Icon(Icons.person_search, size: 20),
+                  label: const Text('Asignar'),
+                ),
             ],
           ),
           for (final a in avisos)
@@ -338,7 +331,7 @@ class PuestosMesa extends ConsumerWidget {
     final mesas = ref.read(mesaPorIdProvider);
     final c = await elegir(
       context,
-      titulo: 'Añadir catador a ${mesa.nombre}',
+      titulo: 'Asignar catador existente a ${mesa.nombre}',
       opciones: otros,
       texto: (c) => c.completo,
       sub: (c) =>
@@ -350,7 +343,7 @@ class PuestosMesa extends ConsumerWidget {
     while (ocupados.contains(p)) {
       p++;
     }
-    await ejecutar(context, () => ref.read(repoProvider)!.moverCatador(c.id, mesa.id, p));
+    await ejecutarConAvisos(context, () => ref.read(repoProvider)!.moverCatador(c.id, mesa.id, p));
   }
 }
 

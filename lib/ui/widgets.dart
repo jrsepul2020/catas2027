@@ -54,6 +54,24 @@ Future<bool> ejecutar(BuildContext context, Future<void> Function() f, {String? 
   }
 }
 
+/// Como [ejecutar], pero muestra avisos de validación de mesa (no bloquean).
+Future<bool> ejecutarConAvisos(BuildContext context, Future<List<String>> Function() f, {String? ok}) async {
+  HapticFeedback.selectionClick();
+  try {
+    final avisos = await f();
+    if (!context.mounted) return true;
+    if (avisos.isNotEmpty) {
+      aviso(context, avisos.join('\n'), error: true);
+    } else if (ok != null) {
+      aviso(context, ok);
+    }
+    return true;
+  } catch (e) {
+    if (context.mounted) aviso(context, 'Error: $e', error: true);
+    return false;
+  }
+}
+
 Future<bool> confirmar(BuildContext context, String titulo, {String? texto, String si = 'Sí'}) async {
   final r = await showDialog<bool>(
     context: context,
@@ -457,12 +475,16 @@ class PanelDiagnostico extends ConsumerWidget {
     if (!ref.watch(modoPruebasProvider)) return const SizedBox.shrink();
     final conteos = ref.watch(conteoTablasProvider);
     final errores = ref.watch(erroresTablasProvider);
+    final avisos = ref.watch(avisosTablasProvider);
     final dia = ref.watch(diaIdProvider);
     final conc = ref.watch(concursoIdProvider);
     final tandas = ref.watch(tandasProvider).length;
+    final rtMal = avisos.isNotEmpty;
     final texto = [
-      'Diagnóstico · concurso=$conc · día=${dia ?? "todos"} · tandasFiltro=$tandas',
-      for (final e in conteos.entries) '${e.key}:${e.value}${errores.containsKey(e.key) ? "!" : ""}',
+      'Diagnóstico · concurso=$conc · día=${dia ?? "todos"} · tandasFiltro=$tandas'
+          '${rtMal ? " · Realtime fallando (datos por REST)" : ""}',
+      for (final e in conteos.entries)
+        '${e.key}:${e.value}${errores.containsKey(e.key) ? "!" : (avisos.containsKey(e.key) ? "~" : "")}',
     ].join(' · ');
     return Material(
       color: Paleta.amarilloPastel,

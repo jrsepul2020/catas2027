@@ -27,15 +27,10 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
       que: 'Cargar catadores',
       tablas: const ['catadores', 'mesas'],
       vacio: todos.isEmpty,
-      queHacerSiVacio: 'No hay catadores. Pulsa «Catador» para crear el primero.',
+      queHacerSiVacio: 'No hay catadores. Sincroniza desde Cloud o revisa el concurso.',
     );
     return Scaffold(
       appBar: AppBar(title: Text('Catadores (${todos.length})'), actions: const [ChipEntorno()]),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => editarCatador(context, ref, null),
-        icon: const Icon(Icons.person_add),
-        label: const Text('Catador'),
-      ),
       body:
           problema ??
           Ancho(
@@ -54,7 +49,7 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
                 ),
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 120),
+                    padding: const EdgeInsets.only(bottom: 24),
                     itemCount: l.length,
                     itemExtent: 62,
                     itemBuilder: (c, i) {
@@ -98,26 +93,27 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
   }
 }
 
-Future<void> editarCatador(BuildContext context, WidgetRef ref, Catador? c) async {
+Future<void> editarCatador(BuildContext context, WidgetRef ref, Catador c) async {
   final repo = ref.read(repoProvider)!;
-  final nombre = TextEditingController(text: c?.nombre ?? '');
-  final titulo = TextEditingController(text: c?.r['titulo'] ?? '');
-  final pais = TextEditingController(text: c?.r['pais_codigo'] ?? '');
+  final nombre = TextEditingController(text: c.nombre);
+  final titulo = TextEditingController(text: c.r['titulo'] ?? '');
+  final pais = TextEditingController(text: c.r['pais_codigo'] ?? '');
   String? t(TextEditingController x) => x.text.trim().isEmpty ? null : x.text.trim();
   await hojaFormulario(
     context,
-    titulo: c == null ? 'Nuevo catador' : 'Editar catador',
+    titulo: 'Editar catador',
     campos: [
-      Campo(nombre, 'Nombre y apellidos', autofocus: c == null),
+      Campo(nombre, 'Nombre y apellidos', autofocus: true),
       Campo(titulo, 'Título (opcional, p. ej. Dr.)'),
       Campo(pais, 'País (código, p. ej. ES)'),
     ],
-    borrar: c == null ? null : () => repo.borrar('catadores', c.id),
+    borrar: () => repo.borrar('catadores', c.id),
     guardar: () async {
-      final d = {'nombre': nombre.text.trim(), 'titulo': t(titulo), 'pais_codigo': t(pais)?.toUpperCase()};
-      c == null
-          ? await repo.insertar('catadores', {...d, 'rol': 'catador'})
-          : await repo.actualizar('catadores', c.id, d);
+      await repo.actualizar('catadores', c.id, {
+        'nombre': nombre.text.trim(),
+        'titulo': t(titulo),
+        'pais_codigo': t(pais)?.toUpperCase(),
+      });
     },
   );
 }
@@ -125,6 +121,8 @@ Future<void> editarCatador(BuildContext context, WidgetRef ref, Catador? c) asyn
 /// Acciones rápidas sobre un catador (cambio de mesa/puesto, ausencia…).
 Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) async {
   final repo = ref.read(repoProvider)!;
+  final editarPuestos = ref.read(puedeEditarPuestosProvider);
+  final esLocal = ref.read(esLocalProvider);
   final accion = await showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
@@ -134,21 +132,36 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(c.completo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          if (!editarPuestos)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(
+                'En CLOUD los puestos los gestiona la App 1. Activa modo pruebas para forzar cambios.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14),
+              ),
+            ),
           const SizedBox(height: 8),
-          AccionHoja(icono: Icons.event_seat, titulo: 'Cambiar mesa / puesto', onTap: () => Navigator.pop(s, 'mover')),
+          if (editarPuestos)
+            AccionHoja(
+              icono: Icons.event_seat,
+              titulo: 'Cambiar mesa / puesto',
+              onTap: () => Navigator.pop(s, 'mover'),
+            ),
           AccionHoja(
             icono: c.presente ? Icons.person_off : Icons.person,
             color: c.presente ? Paleta.rojo : Paleta.azul,
             titulo: c.presente ? 'Marcar AUSENTE' : 'Marcar presente',
             onTap: () => Navigator.pop(s, 'presente'),
           ),
-          AccionHoja(
-            icono: Icons.star,
-            color: Paleta.lila,
-            titulo: c.esPresidente ? 'Pasar a catador' : 'Hacer presidente de mesa',
-            onTap: () => Navigator.pop(s, 'presidente'),
-          ),
-          if (c.conectado)
+          if (editarPuestos)
+            AccionHoja(
+              icono: Icons.star,
+              color: Paleta.lila,
+              titulo: c.esPresidente ? 'Pasar a catador' : 'Hacer presidente de mesa',
+              onTap: () => Navigator.pop(s, 'presidente'),
+            ),
+          if (esLocal && c.conectado)
             AccionHoja(
               icono: Icons.phonelink_erase,
               color: Paleta.rojo,
@@ -156,15 +169,20 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
               subtitulo: 'Desvincula el dispositivo; queda libre para una reserva',
               onTap: () => Navigator.pop(s, 'liberar'),
             ),
-          AccionHoja(
-            icono: Icons.tablet_android,
-            color: Paleta.azul,
-            titulo: 'Asignar tablet de reserva',
-            subtitulo: 'Usa una de las tablets libres',
-            onTap: () => Navigator.pop(s, 'asignar'),
-          ),
-          if (c.mesaId != null)
-            AccionHoja(icono: Icons.logout, titulo: 'Quitar de la mesa', onTap: () => Navigator.pop(s, 'quitar')),
+          if (esLocal)
+            AccionHoja(
+              icono: Icons.tablet_android,
+              color: Paleta.azul,
+              titulo: 'Asignar tablet de reserva',
+              subtitulo: 'Usa una de las tablets libres',
+              onTap: () => Navigator.pop(s, 'asignar'),
+            ),
+          if (editarPuestos && c.mesaId != null)
+            AccionHoja(
+              icono: Icons.logout,
+              titulo: 'Quitar de la mesa (no ha venido)',
+              onTap: () => Navigator.pop(s, 'quitar'),
+            ),
           AccionHoja(icono: Icons.edit, titulo: 'Editar datos', onTap: () => Navigator.pop(s, 'editar')),
           const SizedBox(height: 8),
         ],
@@ -187,15 +205,11 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
         );
       });
     case 'presidente':
-      await ejecutar(context, () async {
-        if (!c.esPresidente && c.mesaId != null) {
-          // Solo un presidente por mesa: el anterior pasa a catador.
-          for (final o in ref.read(catadoresDeMesaProvider(c.mesaId!)).where((x) => x.esPresidente)) {
-            await repo.actualizar('catadores', o.id, {'rol': 'catador'});
-          }
-        }
-        await repo.actualizar('catadores', c.id, {'rol': c.esPresidente ? 'catador' : 'presidente'});
-      });
+      await ejecutarConAvisos(
+        context,
+        () => repo.fijarPresidente(c.id, presidente: !c.esPresidente),
+        ok: c.esPresidente ? 'Ahora es catador' : 'Ahora es presidente',
+      );
     case 'liberar':
       if (await confirmar(
             context,
@@ -212,7 +226,7 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
     case 'asignar':
       await _asignarTabletReserva(context, ref, c);
     case 'quitar':
-      await ejecutar(context, () => repo.quitarDeMesa(c.id));
+      await ejecutarConAvisos(context, () => repo.quitarDeMesa(c.id), ok: 'Quitado de la mesa');
     case 'editar':
       await editarCatador(context, ref, c);
   }
@@ -300,7 +314,7 @@ Future<void> _moverCatador(BuildContext context, WidgetRef ref, Catador c) async
     ),
   );
   if (puesto == null || !context.mounted) return;
-  await ejecutar(
+  await ejecutarConAvisos(
     context,
     () => ref.read(repoProvider)!.moverCatador(c.id, mesa.id, puesto),
     ok: 'Movido a ${mesa.nombre} · puesto $puesto',

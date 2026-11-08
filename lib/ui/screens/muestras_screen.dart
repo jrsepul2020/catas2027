@@ -48,11 +48,6 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
                 CheckedPopupMenuItem(value: c.id, checked: _categoria == c.id, child: Text(c.nombre)),
             ],
           ),
-          IconButton(
-            tooltip: 'Nueva muestra',
-            onPressed: () => editarMuestra(context, ref, null),
-            icon: const Icon(Icons.add),
-          ),
           const ChipEntorno(),
         ],
       ),
@@ -149,11 +144,7 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
   }
 }
 
-Future<void> editarMuestra(BuildContext context, WidgetRef ref, Muestra? m) async {
-  if (m == null) {
-    await _altaMuestra(context, ref);
-    return;
-  }
+Future<void> editarMuestra(BuildContext context, WidgetRef ref, Muestra m) async {
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -161,53 +152,6 @@ Future<void> editarMuestra(BuildContext context, WidgetRef ref, Muestra? m) asyn
     useSafeArea: true,
     constraints: const BoxConstraints(maxWidth: 720),
     builder: (s) => _HojaMuestra(muestraId: m.id),
-  );
-}
-
-Future<void> _altaMuestra(BuildContext context, WidgetRef ref) async {
-  final repo = ref.read(repoProvider)!;
-  final cats = ref.read(categoriasProvider);
-  final codigo = TextEditingController();
-  final texto = TextEditingController();
-  int? categoria = cats.isNotEmpty ? cats.first.id : null;
-  var activa = true;
-  await hojaFormulario(
-    context,
-    titulo: 'Nueva muestra',
-    campos: [
-      Campo(codigo, 'Código ciego (1–9999)', numero: true, autofocus: true),
-      Campo(texto, 'Código de texto / referencia'),
-      StatefulBuilder(
-        builder: (c, set) => Column(
-          children: [
-            DropdownButtonFormField<int?>(
-              initialValue: categoria,
-              isExpanded: true,
-              style: TextStyle(fontSize: 19, color: Theme.of(c).colorScheme.onSurface),
-              decoration: const InputDecoration(labelText: 'Categoría'),
-              items: [for (final x in cats) DropdownMenuItem(value: x.id, child: Text(x.nombre))],
-              onChanged: (v) => set(() => categoria = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Activa'),
-              subtitle: const Text('Las inactivas no se catan'),
-              value: activa,
-              onChanged: (v) => set(() => activa = v),
-            ),
-          ],
-        ),
-      ),
-    ],
-    guardar: () async {
-      await repo.insertar('muestras', {
-        'codigo_ciego': codigo.text.trim(),
-        'codigo_texto': texto.text.trim().isEmpty ? codigo.text.trim() : texto.text.trim(),
-        'categoria_id': categoria,
-        'activo': activa,
-        'concurso_id': ref.read(concursoIdProvider),
-      });
-    },
   );
 }
 

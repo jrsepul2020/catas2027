@@ -32,22 +32,10 @@ class TandasScreen extends ConsumerWidget {
       que: 'Cargar tandas del día',
       tablas: const ['tandas', 'mesas', 'tanda_muestras'],
       vacio: l.isEmpty,
-      queHacerSiVacio:
-          'Sin tandas para este día. Cambia el chip de día, elige «Todos los días» o pulsa + para crear una.',
+      queHacerSiVacio: 'Sin tandas para este día. Cambia el chip de día o elige «Todos los días».',
     );
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tandas'),
-        actions: [
-          IconButton(
-            tooltip: 'Nueva tanda',
-            onPressed: () => editarTanda(context, ref, null, orden: tandas.length),
-            icon: const Icon(Icons.add),
-          ),
-          const ChipDia(),
-          const ChipEntorno(),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Tandas'), actions: const [ChipDia(), ChipEntorno()]),
       body:
           problema ??
           Ancho(
@@ -244,17 +232,6 @@ class _TandasDeMesaState extends ConsumerState<TandasDeMesa> {
                   },
                 ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.tonalIcon(
-              onPressed: () => editarTanda(context, ref, null, mesaId: widget.mesaId, orden: tandas.length),
-              icon: const Icon(Icons.add),
-              label: const Text('Nueva tanda'),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -342,20 +319,19 @@ class _FilaTanda extends ConsumerWidget {
   }
 }
 
-/// Alta / edición de tanda: número, categoría, día y mesa.
-Future<void> editarTanda(BuildContext context, WidgetRef ref, Tanda? t, {int? mesaId, int orden = 0}) async {
+/// Edición de tanda existente: número, categoría, día y mesa.
+Future<void> editarTanda(BuildContext context, WidgetRef ref, Tanda t) async {
   final repo = ref.read(repoProvider)!;
   final cats = ref.read(categoriasProvider);
   final dias = ref.read(diasProvider);
   final mesas = ref.read(mesasProvider);
-  final maxNum = ref.read(todasTandasProvider).fold<int>(0, (a, b) => b.numero > a ? b.numero : a);
-  final numero = TextEditingController(text: '${t?.numero ?? maxNum + 1}');
-  int? categoria = t?.categoriaId ?? (cats.isNotEmpty ? cats.first.id : null);
-  int? dia = t?.diaId ?? ref.read(diaIdProvider);
-  int? mesa = t?.mesaId ?? mesaId;
+  final numero = TextEditingController(text: '${t.numero}');
+  int? categoria = t.categoriaId ?? (cats.isNotEmpty ? cats.first.id : null);
+  int? dia = t.diaId;
+  int? mesa = t.mesaId;
   await hojaFormulario(
     context,
-    titulo: t == null ? 'Nueva tanda' : t.nombre,
+    titulo: t.nombre,
     campos: [
       Campo(numero, 'Número de tanda', numero: true),
       StatefulBuilder(
@@ -401,20 +377,14 @@ Future<void> editarTanda(BuildContext context, WidgetRef ref, Tanda? t, {int? me
         },
       ),
     ],
-    borrar: t == null ? null : () => repo.borrar('tandas', t.id),
+    borrar: () => repo.borrar('tandas', t.id),
     guardar: () async {
-      final d = {
-        'numero': int.tryParse(numero.text) ?? maxNum + 1,
+      await repo.actualizar('tandas', t.id, {
+        'numero': int.tryParse(numero.text) ?? t.numero,
         'categoria_id': categoria,
         'dia_id': dia,
         'mesa_id': mesa,
-      };
-      if (t == null) {
-        final id = await repo.insertar('tandas', {...d, 'estado': 'pendiente', 'orden': orden});
-        if (context.mounted) context.go('/tandas/$id');
-      } else {
-        await repo.actualizar('tandas', t.id, d);
-      }
+      });
     },
   );
 }
@@ -531,7 +501,7 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
             const SizedBox(height: 8),
             Expanded(
               child: tms.isEmpty
-                  ? const Vacio(icono: Icons.wine_bar, texto: 'Añade muestras a esta tanda')
+                  ? const Vacio(icono: Icons.wine_bar, texto: 'Asigna muestras existentes a esta tanda')
                   : ReorderableListView.builder(
                       padding: const EdgeInsets.all(8),
                       buildDefaultDragHandles: false,
@@ -582,8 +552,8 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
                 width: double.infinity,
                 child: FilledButton.tonalIcon(
                   onPressed: () => _anadirMuestras(context, t, tms.length),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Añadir muestras'),
+                  icon: const Icon(Icons.playlist_add),
+                  label: const Text('Asignar muestras'),
                 ),
               ),
             ),
@@ -707,7 +677,7 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
           maxChildSize: 0.95,
           builder: (c, sc) => Column(
             children: [
-              const Text('Muestras sin tanda', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+              const Text('Muestras existentes sin tanda', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
               Expanded(
                 child: ListView.builder(
                   controller: sc,
@@ -736,7 +706,7 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
                     style: FilledButton.styleFrom(minimumSize: const Size(0, 56)),
                     onPressed: sel.isEmpty ? null : () => Navigator.pop(c, true),
                     icon: const Icon(Icons.check),
-                    label: Text('Añadir ${sel.length}'),
+                    label: Text('Asignar ${sel.length}'),
                   ),
                 ),
               ),
