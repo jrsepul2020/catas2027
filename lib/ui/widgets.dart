@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/backend.dart';
+import '../core/errores.dart';
 import '../core/providers.dart';
 import 'theme.dart';
 
@@ -42,20 +43,25 @@ Future<void> cerrarSesion(BuildContext context, WidgetRef ref) async {
 }
 
 /// Ejecuta una acción mostrando el error si falla. Devuelve true si fue bien.
-Future<bool> ejecutar(BuildContext context, Future<void> Function() f, {String? ok}) async {
+Future<bool> ejecutar(BuildContext context, Future<void> Function() f, {String? ok, String? accion}) async {
   HapticFeedback.selectionClick();
   try {
     await f();
     if (ok != null && context.mounted) aviso(context, ok);
     return true;
-  } catch (e) {
-    if (context.mounted) aviso(context, 'Error: $e', error: true);
+  } catch (e, st) {
+    if (context.mounted) await registrarYMostrarError(context, e, stack: st, accion: accion);
     return false;
   }
 }
 
 /// Como [ejecutar], pero muestra avisos de validación de mesa (no bloquean).
-Future<bool> ejecutarConAvisos(BuildContext context, Future<List<String>> Function() f, {String? ok}) async {
+Future<bool> ejecutarConAvisos(
+  BuildContext context,
+  Future<List<String>> Function() f, {
+  String? ok,
+  String? accion,
+}) async {
   HapticFeedback.selectionClick();
   try {
     final avisos = await f();
@@ -66,8 +72,8 @@ Future<bool> ejecutarConAvisos(BuildContext context, Future<List<String>> Functi
       aviso(context, ok);
     }
     return true;
-  } catch (e) {
-    if (context.mounted) aviso(context, 'Error: $e', error: true);
+  } catch (e, st) {
+    if (context.mounted) await registrarYMostrarError(context, e, stack: st, accion: accion);
     return false;
   }
 }

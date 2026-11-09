@@ -504,9 +504,23 @@ Future<void> editarNota(
   Puntuacion? actual,
 }) async {
   final codigo = ref.read(muestraPorIdProvider)[tm.muestraId]?.codigo ?? '?';
-  if (actual?.aprobada == true) {
-    aviso(context, 'La nota de $codigo está aprobada: no se puede cambiar', error: true);
-    return;
+  final notasMuestra = ref
+      .read(puntuacionesProvider)
+      .where((p) => p.muestraId == tm.muestraId && p.tandaId == tanda.id)
+      .toList();
+  final bloqueada = actual?.aprobada == true || tm.estado == 'completada' || notasMuestra.any((p) => p.aprobada);
+  var forzar = false;
+  if (bloqueada) {
+    final ok = await confirmar(
+      context,
+      'Muestra $codigo bloqueada',
+      texto:
+          'Hay notas aprobadas (o la muestra está completada). '
+          'Como admin puedes forzar el cambio: se reabre la muestra y la nota pasa a «enviada».',
+      si: 'Forzar cambio',
+    );
+    if (!ok || !context.mounted) return;
+    forzar = true;
   }
   final r = await showDialog<(bool, double?)>(
     context: context,
@@ -521,11 +535,17 @@ Future<void> editarNota(
   final repo = ref.read(repoProvider)!;
   await ejecutar(context, () async {
     if (borrar) {
-      await repo.borrarPuntuacion(actual!.id);
+      await repo.borrarPuntuacion(actual!.id, forzar: forzar);
     } else if (valor != null) {
-      await repo.puntuarManual(muestraId: tm.muestraId, catadorId: catador.id, tandaId: tanda.id, total: valor);
+      await repo.puntuarManual(
+        muestraId: tm.muestraId,
+        catadorId: catador.id,
+        tandaId: tanda.id,
+        total: valor,
+        forzar: forzar,
+      );
     }
-  });
+  }, accion: forzar ? 'Forzar nota $codigo' : 'Editar nota $codigo');
 }
 
 class _DialogoNota extends StatefulWidget {

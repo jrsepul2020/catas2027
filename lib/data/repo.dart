@@ -194,16 +194,27 @@ class Repo {
     final aa = await c.from('asignaciones').select().eq('dia_id', dia).eq('catador_id', a).maybeSingle();
     final bb = await c.from('asignaciones').select().eq('dia_id', dia).eq('catador_id', b).maybeSingle();
     if (aa == null || bb == null) throw StateError('Falta asignación de uno de los catadores');
-    await c
-        .from('asignaciones')
-        .update({'mesa_id': bb['mesa_id'], 'puesto': bb['puesto'], 'rol': bb['rol']})
-        .eq('id', aa['id']);
-    await c
-        .from('asignaciones')
-        .update({'mesa_id': aa['mesa_id'], 'puesto': aa['puesto'], 'rol': aa['rol']})
-        .eq('id', bb['id']);
-    await registrar('cambio_puesto', tabla: 'asignaciones', registroId: '$a,$b', motivo: motivo);
-    return _avisosMesasCloud(dia, [(aa['mesa_id'] as num?)?.toInt(), (bb['mesa_id'] as num?)?.toInt()]);
+    final mesaA = (aa['mesa_id'] as num?)?.toInt();
+    final mesaB = (bb['mesa_id'] as num?)?.toInt();
+    try {
+      await c.rpc('intercambiar_asignaciones', params: {'p_a': a, 'p_b': b, 'p_dia': dia, 'p_motivo': motivo});
+    } on PostgrestException catch (e) {
+      final faltaFn =
+          (e.code == 'PGRST202') ||
+          e.message.toLowerCase().contains('could not find') ||
+          e.message.toLowerCase().contains('intercambiar_asignaciones');
+      if (!faltaFn) rethrow;
+      // Fallback si la migración aún no está aplicada: liberar A (NULL) antes del swap.
+      final puestoA = aa['puesto'];
+      final rolA = aa['rol'];
+      final puestoB = bb['puesto'];
+      final rolB = bb['rol'];
+      await c.from('asignaciones').update({'mesa_id': null, 'puesto': null}).eq('id', aa['id']);
+      await c.from('asignaciones').update({'mesa_id': mesaA, 'puesto': puestoA, 'rol': rolA}).eq('id', bb['id']);
+      await c.from('asignaciones').update({'mesa_id': mesaB, 'puesto': puestoB, 'rol': rolB}).eq('id', aa['id']);
+      await registrar('cambio_puesto', tabla: 'asignaciones', registroId: '$a,$b', motivo: motivo);
+    }
+    return _avisosMesasCloud(dia, [mesaA, mesaB]);
   }
 
   Future<List<String>> _moverAsignacion(int id, int mesaId, int puesto, {String? motivo}) async {
@@ -313,16 +324,32 @@ class Repo {
     required int catadorId,
     required int tandaId,
     required double total,
-  }) => c.from('puntuaciones').upsert({
-    'muestra_id': muestraId,
-    'catador_id': catadorId,
-    'tanda_id': tandaId,
-    'total': total,
-    'scores': {'manual': true, 'total': total},
-    'estado': 'enviada',
-  }, onConflict: 'catador_id,muestra_id');
+    bool forzar = false,
+  }) async {
+    if (forzar) {
+      await c.rpc(
+        'puntuar_manual_admin',
+        params: {'p_muestra': muestraId, 'p_catador': catadorId, 'p_tanda': tandaId, 'p_total': total},
+      );
+      return;
+    }
+    await c.from('puntuaciones').upsert({
+      'muestra_id': muestraId,
+      'catador_id': catadorId,
+      'tanda_id': tandaId,
+      'total': total,
+      'scores': {'manual': true, 'total': total},
+      'estado': 'enviada',
+    }, onConflict: 'catador_id,muestra_id');
+  }
 
-  Future<void> borrarPuntuacion(int id) => c.from('puntuaciones').delete().eq('id', id);
+  Future<void> borrarPuntuacion(int id, {bool forzar = false}) async {
+    if (forzar) {
+      await c.rpc('borrar_puntuacion_admin', params: {'p_id': id});
+      return;
+    }
+    await c.from('puntuaciones').delete().eq('id', id);
+  }
 
   // ------------------- medallas -------------------
   Future<List<Resultado>> resultados(int? concursoId) async {

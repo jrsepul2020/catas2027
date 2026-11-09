@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/backend.dart';
+import '../../core/errores.dart';
 import '../../core/providers.dart';
 import '../../sync/sync_service.dart';
 import '../theme.dart';
@@ -268,8 +269,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     try {
       final r = await svc.generarAsignacionesPrueba(_dia!);
       if (mounted) aviso(context, 'Asignaciones: ${r['asignaciones']} · mesas: ${r['mesas']}');
-    } catch (e) {
-      if (mounted) aviso(context, 'Error: $e', error: true);
+    } catch (e, st) {
+      if (mounted) await registrarYMostrarError(context, e, stack: st, accion: 'Generar asignaciones de prueba');
     }
   }
 
@@ -294,8 +295,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         setState(() {});
         aviso(context, 'LOCAL vacío');
       }
-    } catch (e) {
-      if (mounted) aviso(context, '$e', error: true);
+    } catch (e, st) {
+      if (mounted) await registrarYMostrarError(context, e, stack: st, accion: 'Vaciar LOCAL');
     }
   }
 

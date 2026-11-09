@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/actualizacion.dart';
 import '../../core/backend.dart';
+import '../../core/errores.dart';
 import '../../core/providers.dart';
 import '../widgets.dart';
 import 'catas_screen.dart';
@@ -82,6 +83,24 @@ class AjustesScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             const TarjetaActualizacion(),
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: Badge(
+                  isLabelVisible: ref.watch(logErroresProvider).isNotEmpty,
+                  label: Text('${ref.watch(logErroresProvider).length}'),
+                  child: const Icon(Icons.bug_report_outlined),
+                ),
+                title: const Text('Log de errores'),
+                subtitle: Text(
+                  ref.watch(logErroresProvider).isEmpty
+                      ? 'Sin fallos registrados en este dispositivo'
+                      : 'Último: ${ref.watch(logErroresProvider).first.titulo}',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => mostrarLogErrores(context, ref),
+              ),
+            ),
             const SizedBox(height: 16),
             for (final en in Entorno.values) ...[_TarjetaEntorno(en), const SizedBox(height: 16)],
             if (ses != null) ...[
