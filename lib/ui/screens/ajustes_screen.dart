@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/actualizacion.dart';
 import '../../core/backend.dart';
 import '../../core/providers.dart';
 import '../widgets.dart';
@@ -80,6 +81,8 @@ class AjustesScreen extends ConsumerWidget {
               onSelectionChanged: (s) => ref.read(entornoProvider.notifier).cambiar(s.first),
             ),
             const SizedBox(height: 20),
+            const TarjetaActualizacion(),
+            const SizedBox(height: 16),
             for (final en in Entorno.values) ...[_TarjetaEntorno(en), const SizedBox(height: 16)],
             if (ses != null) ...[
               Card(

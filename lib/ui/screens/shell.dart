@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/actualizacion.dart';
 import '../../core/providers.dart';
 import '../widgets.dart';
 
@@ -97,6 +98,7 @@ class Shell extends ConsumerWidget {
             Expanded(
               child: Column(
                 children: [
+                  const AvisoActualizacionDisponible(),
                   Expanded(child: child),
                   const PanelDiagnostico(),
                 ],
@@ -109,6 +111,7 @@ class Shell extends ConsumerWidget {
     return Scaffold(
       body: Column(
         children: [
+          const AvisoActualizacionDisponible(),
           Expanded(child: child),
           const PanelDiagnostico(),
         ],
