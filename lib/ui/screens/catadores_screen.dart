@@ -203,12 +203,13 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
           registroId: '${c.id}',
           motivo: '${c.nombre}${c.puesto != null ? ' (mesa ${c.r['mesa'] ?? '?'}, puesto ${c.puesto})' : ''}',
         );
-      });
+      }, refrescar: const ['catadores']);
     case 'presidente':
       await ejecutarConAvisos(
         context,
         () => repo.fijarPresidente(c.id, presidente: !c.esPresidente),
         ok: c.esPresidente ? 'Ahora es catador' : 'Ahora es presidente',
+        refrescar: tablasPuestos,
       );
     case 'liberar':
       if (await confirmar(
@@ -218,15 +219,25 @@ Future<void> opcionesCatador(BuildContext context, WidgetRef ref, Catador c) asy
             si: 'Liberar',
           ) &&
           context.mounted) {
-        await ejecutar(context, () async {
-          await repo.liberarTablet(c.id);
-          await registrarCambio(ref, 'liberar_tablet', tabla: 'catadores', registroId: '${c.id}', motivo: c.nombre);
-        }, ok: 'Tablet liberada');
+        await ejecutar(
+          context,
+          () async {
+            await repo.liberarTablet(c.id);
+            await registrarCambio(ref, 'liberar_tablet', tabla: 'catadores', registroId: '${c.id}', motivo: c.nombre);
+          },
+          ok: 'Tablet liberada',
+          refrescar: const ['dispositivos', 'catadores'],
+        );
       }
     case 'asignar':
       await _asignarTabletReserva(context, ref, c);
     case 'quitar':
-      await ejecutarConAvisos(context, () => repo.quitarDeMesa(c.id), ok: 'Quitado de la mesa');
+      await ejecutarConAvisos(
+        context,
+        () => repo.quitarDeMesa(c.id),
+        ok: 'Quitado de la mesa',
+        refrescar: tablasPuestos,
+      );
     case 'editar':
       await editarCatador(context, ref, c);
   }
@@ -246,16 +257,21 @@ Future<void> _asignarTabletReserva(BuildContext context, WidgetRef ref, Catador 
     sub: (x) => x.ultimaVez == null ? 'Sin uso reciente' : 'Última: ${x.ultimaVez}',
   );
   if (d == null || !context.mounted) return;
-  await ejecutar(context, () async {
-    await ref.read(repoProvider)!.asignarTablet(d.id, c.id);
-    await registrarCambio(
-      ref,
-      'asignar_tablet',
-      tabla: 'dispositivos',
-      registroId: '${d.id}',
-      motivo: '${c.nombre} ← ${d.deviceId}',
-    );
-  }, ok: 'Tablet asignada');
+  await ejecutar(
+    context,
+    () async {
+      await ref.read(repoProvider)!.asignarTablet(d.id, c.id);
+      await registrarCambio(
+        ref,
+        'asignar_tablet',
+        tabla: 'dispositivos',
+        registroId: '${d.id}',
+        motivo: '${c.nombre} ← ${d.deviceId}',
+      );
+    },
+    ok: 'Tablet asignada',
+    refrescar: const ['dispositivos', 'catadores'],
+  );
 }
 
 Future<void> _moverCatador(BuildContext context, WidgetRef ref, Catador c) async {
@@ -318,5 +334,6 @@ Future<void> _moverCatador(BuildContext context, WidgetRef ref, Catador c) async
     context,
     () => ref.read(repoProvider)!.moverCatador(c.id, mesa.id, puesto),
     ok: 'Movido a ${mesa.nombre} · puesto $puesto',
+    refrescar: tablasPuestos,
   );
 }

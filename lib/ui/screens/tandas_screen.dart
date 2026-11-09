@@ -431,7 +431,7 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
 
     Widget accion(String estado, IconData i, String txt) => Expanded(
       child: FilledButton.icon(
-        onPressed: () => ejecutar(context, () => repo.estadoTanda(t.id, estado)),
+        onPressed: () => ejecutar(context, () => repo.estadoTanda(t.id, estado), refrescar: const ['tandas']),
         icon: Icon(i),
         label: Text(txt),
       ),
@@ -441,6 +441,10 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
       appBar: AppBar(
         title: Text(t.nombre),
         actions: [
+          const BotonRefrescar(
+            tooltip: 'Actualizar notas',
+            tablas: ['puntuaciones', 'tanda_muestras', 'tandas', 'catadores'],
+          ),
           IconButton(
             tooltip: 'Editar tanda',
             onPressed: () => editarTanda(context, ref, t),
@@ -618,7 +622,12 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
     if (a == null || !context.mounted) return;
     switch (a) {
       case 'activar':
-        await ejecutar(context, () => repo.activarMuestra(tm.id), ok: 'Muestra ${m?.codigo} activa');
+        await ejecutar(
+          context,
+          () => repo.activarMuestra(tm.id),
+          ok: 'Muestra ${m?.codigo} activa',
+          refrescar: const ['tanda_muestras', 'tandas'],
+        );
       case 'aprobar':
         if (await confirmar(
               context,
@@ -628,7 +637,7 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
             ) &&
             context.mounted) {
           var n = 0;
-          final ok = await ejecutar(context, () async => n = await repo.aprobarMuestra(tm.id));
+          final ok = await ejecutar(context, () async => n = await repo.aprobarMuestra(tm.id), refrescar: tablasNotas);
           if (ok && context.mounted) aviso(context, '$n notas aprobadas');
         }
       case 'incidencia':
@@ -646,6 +655,7 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
           await ejecutar(
             context,
             () => repo.resolverIncidencia(tm.id, 'quitar_de_tanda', motivo: 'Quitada desde la app'),
+            refrescar: tablasNotas,
           );
         }
     }

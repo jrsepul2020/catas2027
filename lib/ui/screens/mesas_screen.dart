@@ -192,6 +192,10 @@ class MesaDetalleScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(mesa.nombre),
         actions: [
+          const BotonRefrescar(
+            tooltip: 'Actualizar',
+            tablas: ['puntuaciones', 'tanda_muestras', 'tandas', 'catadores', 'asignaciones'],
+          ),
           IconButton(onPressed: () => editarMesa(context, ref, mesa), icon: const Icon(Icons.edit)),
           const ChipDia(),
         ],
@@ -261,6 +265,7 @@ class PuestosMesa extends ConsumerWidget {
           context,
           () => ref.read(repoProvider)!.intercambiarPuestos(otro, c.id),
           ok: 'Puestos intercambiados',
+          refrescar: tablasPuestos,
         );
       },
       onTap: () => opcionesCatador(context, ref, c),
@@ -327,23 +332,45 @@ class PuestosMesa extends ConsumerWidget {
   }
 
   Future<void> _asignarCatador(BuildContext context, WidgetRef ref) async {
-    final otros = ref.read(catadoresProvider).where((c) => c.mesaId != mesa.id).toList();
-    final mesas = ref.read(mesaPorIdProvider);
+    final porMesa = ref.read(concursoProvider)?.catadoresPorMesa ?? 5;
+    final enMesa = ref.read(catadoresDeMesaProvider(mesa.id));
+    if (enMesa.length >= porMesa) {
+      aviso(context, 'La mesa ya tiene $porMesa catadores. Quita a alguien o usa intercambiar.', error: true);
+      return;
+    }
+    // Solo sin mesa: quien ya está en otra se mueve con «Cambiar mesa/puesto».
+    final libres = ref.read(catadoresProvider).where((c) => c.mesaId == null).toList();
+    if (libres.isEmpty) {
+      aviso(
+        context,
+        'No hay catadores sin mesa. Para traer a alguien de otra mesa: tócalo → Cambiar mesa/puesto.',
+        error: true,
+      );
+      return;
+    }
     final c = await elegir(
       context,
-      titulo: 'Asignar catador existente a ${mesa.nombre}',
-      opciones: otros,
+      titulo: 'Asignar a ${mesa.nombre} (sin mesa)',
+      opciones: libres,
       texto: (c) => c.completo,
-      sub: (c) =>
-          c.mesaId == null ? 'Sin mesa' : 'Ahora en ${mesas[c.mesaId]?.nombre ?? '?'} · puesto ${c.puesto ?? '-'}',
+      sub: (c) => [if (c.pais != null) c.pais!, 'Sin mesa'].join(' · '),
     );
     if (c == null || !context.mounted) return;
-    final ocupados = ref.read(catadoresDeMesaProvider(mesa.id)).map((e) => e.puesto).toSet();
+    final ocupados = enMesa.map((e) => e.puesto).whereType<int>().toSet();
     var p = 1;
     while (ocupados.contains(p)) {
       p++;
     }
-    await ejecutarConAvisos(context, () => ref.read(repoProvider)!.moverCatador(c.id, mesa.id, p));
+    if (p > porMesa) {
+      aviso(context, 'No queda puesto libre (1–$porMesa)', error: true);
+      return;
+    }
+    await ejecutarConAvisos(
+      context,
+      () => ref.read(repoProvider)!.moverCatador(c.id, mesa.id, p),
+      ok: 'Asignado a ${mesa.nombre} · puesto $p',
+      refrescar: tablasPuestos,
+    );
   }
 }
 

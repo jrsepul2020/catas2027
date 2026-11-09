@@ -178,7 +178,7 @@ Future<void> resolverIncidencia(BuildContext context, WidgetRef ref, TandaMuestr
   String? msg;
   final ok = await ejecutar(context, () async {
     msg = await ref.read(repoProvider)!.resolverIncidencia(tm.id, accion, motivo: tm.motivo);
-  });
+  }, refrescar: tablasNotas);
   if (ok && context.mounted && msg != null && msg!.isNotEmpty) aviso(context, msg!);
 }
 

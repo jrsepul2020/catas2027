@@ -357,6 +357,10 @@ class HojaPuntuacionScreen extends ConsumerWidget {
           ),
         ),
         actions: [
+          const BotonRefrescar(
+            tooltip: 'Actualizar notas',
+            tablas: ['puntuaciones', 'tanda_muestras', 'tandas', 'catadores'],
+          ),
           if (t.estado == 'pendiente')
             IconButton(
               tooltip: 'Abrir tanda',
@@ -439,10 +443,20 @@ class HojaPuntuacionScreen extends ConsumerWidget {
     if (a == null || !context.mounted) return;
     switch (a) {
       case 'activar':
-        await ejecutar(context, () => repo.activarMuestra(tm.id), ok: '${m?.codigo} activa');
+        await ejecutar(
+          context,
+          () => repo.activarMuestra(tm.id),
+          ok: '${m?.codigo} activa',
+          refrescar: const ['tanda_muestras', 'tandas'],
+        );
       case 'aprobar':
         if (await confirmar(context, '¿Aprobar las notas de ${m?.codigo}?', si: 'Aprobar') && context.mounted) {
-          await ejecutar(context, () => repo.aprobarMuestra(tm.id), ok: '${m?.codigo} aprobada');
+          await ejecutar(
+            context,
+            () => repo.aprobarMuestra(tm.id),
+            ok: '${m?.codigo} aprobada',
+            refrescar: tablasNotas,
+          );
         }
       case 'incidencia':
         await nuevaIncidencia(context, ref, tm: tm);
@@ -533,19 +547,24 @@ Future<void> editarNota(
   if (r == null || !context.mounted) return;
   final (borrar, valor) = r;
   final repo = ref.read(repoProvider)!;
-  await ejecutar(context, () async {
-    if (borrar) {
-      await repo.borrarPuntuacion(actual!.id, forzar: forzar);
-    } else if (valor != null) {
-      await repo.puntuarManual(
-        muestraId: tm.muestraId,
-        catadorId: catador.id,
-        tandaId: tanda.id,
-        total: valor,
-        forzar: forzar,
-      );
-    }
-  }, accion: forzar ? 'Forzar nota $codigo' : 'Editar nota $codigo');
+  await ejecutar(
+    context,
+    () async {
+      if (borrar) {
+        await repo.borrarPuntuacion(actual!.id, forzar: forzar);
+      } else if (valor != null) {
+        await repo.puntuarManual(
+          muestraId: tm.muestraId,
+          catadorId: catador.id,
+          tandaId: tanda.id,
+          total: valor,
+          forzar: forzar,
+        );
+      }
+    },
+    accion: forzar ? 'Forzar nota $codigo' : 'Editar nota $codigo',
+    refrescar: tablasNotas,
+  );
 }
 
 class _DialogoNota extends StatefulWidget {

@@ -50,6 +50,7 @@ class DirectoScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          const BotonRefrescar(tooltip: 'Actualizar notas'),
           if (inc > 0)
             IconButton(
               tooltip: 'Incidencias abiertas',

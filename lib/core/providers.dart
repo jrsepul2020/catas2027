@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -99,8 +101,21 @@ const tablasApp = [
 ];
 
 // ---------------- Tablas en tiempo real ----------------
-/// Carga REST primero y mantiene ese snapshot si Realtime falla (p. ej. 401 JWT).
-/// Realtime sigue siendo la vía principal; el reintento es de suscripción, no un poll.
+/// Tablas del directo/puestos/notas. El resto solo Realtime + refresco a demanda.
+const tablasCalientes = {'puntuaciones', 'tanda_muestras', 'tandas', 'dispositivos', 'catadores', 'asignaciones'};
+
+/// Contador global: al subir, cada [filasProvider] hace un REST sin tumbar el socket.
+class PedidoRefresco extends Notifier<({int n, Set<String>? tablas})> {
+  @override
+  ({int n, Set<String>? tablas}) build() => (n: 0, tablas: null);
+
+  void pedir({Iterable<String>? tablas}) => state = (n: state.n + 1, tablas: tablas?.toSet());
+}
+
+final pedidoRefrescoProvider = NotifierProvider<PedidoRefresco, ({int n, Set<String>? tablas})>(PedidoRefresco.new);
+
+/// Carga REST primero. Realtime al vuelo. Poll REST solo en tablas calientes y solo
+/// si el canal lleva ≥15 s sin evento (si Realtime va bien, no hay tráfico extra).
 final filasProvider = StreamProvider.family<List<Json>, String>((ref, tabla) async* {
   final c = await ref.watch(clienteProvider.future);
   if (c == null || ref.watch(usuarioIdProvider) == null) {
@@ -125,38 +140,91 @@ final filasProvider = StreamProvider.family<List<Json>, String>((ref, tabla) asy
   }
   yield actual;
 
-  var fallosRtSeguidos = 0;
-  while (true) {
-    try {
-      final crudo = tabla == 'registro_cambios'
-          ? c.from(tabla).stream(primaryKey: ['id']).order('creado_en').limit(300)
-          : c.from(tabla).stream(primaryKey: ['id']).order('id', ascending: true);
-      // Nunca propagar errores de Realtime (p. ej. WebSocket 401) al StreamProvider:
-      // la UI debe quedarse con el snapshot REST.
-      final stream = crudo.handleError((_) {});
-      await for (final rows in stream) {
-        fallosRtSeguidos = 0;
-        actual = [for (final r in rows) Map<String, dynamic>.from(r as Map)];
-        yield actual;
-      }
-      // Canal cerrado sin error: reabrir.
-      fallosRtSeguidos++;
-    } catch (_) {
-      fallosRtSeguidos++;
-    }
+  final ctrl = StreamController<List<Json>>();
+  StreamSubscription<List<Map<String, dynamic>>>? sub;
+  var reabrirRt = false;
+  var refrescando = false;
+  DateTime? ultimoEventoRt;
+  final esCaliente = tablasCalientes.contains(tabla);
 
-    // Un refresh REST puntual tras fallo de socket (no periódico).
+  void emitir(List<Json> rows) {
+    if (!ctrl.isClosed) ctrl.add(rows);
+  }
+
+  Future<void> restSilencioso() async {
+    if (refrescando) return;
+    refrescando = true;
     try {
       actual = await cargarRest();
-      yield actual;
+      emitir(actual);
     } catch (_) {
-      // Conservamos el último snapshot bueno.
+    } finally {
+      refrescando = false;
     }
+  }
 
-    final secs = (8 * (1 << fallosRtSeguidos.clamp(0, 3))).clamp(8, 64);
-    await Future<void>.delayed(Duration(seconds: secs));
+  void suscribirRt() {
+    sub?.cancel();
+    final crudo = tabla == 'registro_cambios'
+        ? c.from(tabla).stream(primaryKey: ['id']).order('creado_en').limit(300)
+        : c.from(tabla).stream(primaryKey: ['id']).order('id', ascending: true);
+    sub = crudo.listen(
+      (rows) {
+        ultimoEventoRt = DateTime.now();
+        actual = [for (final r in rows) Map<String, dynamic>.from(r as Map)];
+        emitir(actual);
+      },
+      onError: (_) {
+        reabrirRt = true;
+      },
+      onDone: () {
+        reabrirRt = true;
+      },
+      cancelOnError: false,
+    );
+  }
+
+  suscribirRt();
+
+  // Solo tablas calientes: red de seguridad si Realtime se queda mudo.
+  // Tablas frías: Realtime + botón Actualizar + refresco tras escritura.
+  Timer? timer;
+  if (esCaliente) {
+    timer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      final silencio =
+          ultimoEventoRt == null || DateTime.now().difference(ultimoEventoRt!) >= const Duration(seconds: 15);
+      if (silencio || reabrirRt) await restSilencioso();
+      if (reabrirRt) {
+        reabrirRt = false;
+        suscribirRt();
+      }
+    });
+  }
+
+  ref.listen(pedidoRefrescoProvider, (_, next) {
+    final filtro = next.tablas;
+    if (filtro == null || filtro.contains(tabla)) unawaited(restSilencioso());
+  });
+
+  ref.onDispose(() {
+    timer?.cancel();
+    sub?.cancel();
+    unawaited(ctrl.close());
+  });
+
+  await for (final rows in ctrl.stream) {
+    yield rows;
   }
 });
+
+/// Fuerza una recarga REST de las tablas indicadas (o las calientes del directo).
+void refrescarDatos(WidgetRef ref, {Iterable<String>? tablas}) {
+  ref.read(pedidoRefrescoProvider.notifier).pedir(tablas: tablas ?? tablasCalientes);
+}
+
+/// Tras mover puestos / roles / notas: tablas que la UI de mesa necesita al instante.
+const tablasPuestos = ['asignaciones', 'catadores', 'dispositivos'];
+const tablasNotas = ['puntuaciones', 'tanda_muestras', 'tandas'];
 
 List<T> _lista<T>(Ref ref, String tabla, T Function(Json) f, [int Function(T, T)? cmp]) {
   final async = ref.watch(filasProvider(tabla));

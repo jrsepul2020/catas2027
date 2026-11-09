@@ -25,6 +25,44 @@ void aviso(BuildContext context, String msg, {bool error = false}) {
   );
 }
 
+/// Icono para forzar recarga REST de notas/tandas (además del poll de 10 s).
+class BotonRefrescar extends ConsumerStatefulWidget {
+  const BotonRefrescar({super.key, this.tablas, this.tooltip = 'Actualizar datos'});
+  final Iterable<String>? tablas;
+  final String tooltip;
+  @override
+  ConsumerState<BotonRefrescar> createState() => _BotonRefrescarState();
+}
+
+class _BotonRefrescarState extends ConsumerState<BotonRefrescar> {
+  var _girando = false;
+
+  Future<void> _tocar() async {
+    if (_girando) return;
+    setState(() => _girando = true);
+    HapticFeedback.selectionClick();
+    refrescarDatos(ref, tablas: widget.tablas);
+    // Deja que los StreamProvider recarguen; el icono gira un momento.
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (mounted) setState(() => _girando = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: widget.tooltip,
+      onPressed: _tocar,
+      icon: _girando
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+            )
+          : const Icon(Icons.refresh),
+    );
+  }
+}
+
 /// Cierra la sesión del entorno activo y vuelve al login.
 Future<void> cerrarSesion(BuildContext context, WidgetRef ref) async {
   final e = ref.read(entornoProvider);
@@ -42,11 +80,34 @@ Future<void> cerrarSesion(BuildContext context, WidgetRef ref) async {
   if (context.mounted) context.go('/login');
 }
 
+void _refrescoTrasEscritura(ProviderContainer? cont, Iterable<String>? tablas) {
+  if (tablas == null || cont == null) return;
+  try {
+    cont.read(pedidoRefrescoProvider.notifier).pedir(tablas: tablas);
+  } catch (_) {}
+}
+
+ProviderContainer? _contenedorDe(BuildContext context) {
+  try {
+    return ProviderScope.containerOf(context, listen: false);
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Ejecuta una acción mostrando el error si falla. Devuelve true si fue bien.
-Future<bool> ejecutar(BuildContext context, Future<void> Function() f, {String? ok, String? accion}) async {
+Future<bool> ejecutar(
+  BuildContext context,
+  Future<void> Function() f, {
+  String? ok,
+  String? accion,
+  Iterable<String>? refrescar,
+}) async {
   HapticFeedback.selectionClick();
+  final cont = _contenedorDe(context);
   try {
     await f();
+    _refrescoTrasEscritura(cont, refrescar);
     if (ok != null && context.mounted) aviso(context, ok);
     return true;
   } catch (e, st) {
@@ -61,10 +122,13 @@ Future<bool> ejecutarConAvisos(
   Future<List<String>> Function() f, {
   String? ok,
   String? accion,
+  Iterable<String>? refrescar,
 }) async {
   HapticFeedback.selectionClick();
+  final cont = _contenedorDe(context);
   try {
     final avisos = await f();
+    _refrescoTrasEscritura(cont, refrescar);
     if (!context.mounted) return true;
     if (avisos.isNotEmpty) {
       aviso(context, avisos.join('\n'), error: true);
