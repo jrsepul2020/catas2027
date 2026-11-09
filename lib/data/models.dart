@@ -113,6 +113,9 @@ class Muestra {
   String? get codigoTexto => _sn(r['codigo_texto']);
   bool get activa => r['activo'] ?? true;
 
+  /// Nota libre del coordinador (columna aditiva `observaciones`).
+  String? get observaciones => _sn(r['observaciones']);
+
   /// Códigos numéricos < 1000: muestras manuales, se catan pero no premian.
   bool get noPremia {
     final n = int.tryParse(codigo);

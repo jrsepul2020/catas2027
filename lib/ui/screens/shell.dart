@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/actualizacion.dart';
 import '../../core/providers.dart';
+import '../iconos.dart';
 import '../marca.dart';
 import '../widgets.dart';
 
@@ -16,15 +17,15 @@ class _Dest {
 }
 
 const _destinos = [
-  _Dest('/', Icons.home_outlined, 'Inicio'),
-  _Dest('/directo', Icons.live_tv_outlined, 'Directo'),
-  _Dest('/mesas', Icons.table_restaurant_outlined, 'Mesas'),
-  _Dest('/puntuar', Icons.grid_view_outlined, 'Puntuac.'),
-  _Dest('/incidencias', Icons.warning_amber_outlined, 'Incidencias'),
-  _Dest('/medallas', Icons.military_tech_outlined, 'Medallero', movil: false),
-  _Dest('/tandas', Icons.format_list_numbered_outlined, 'Tandas', movil: false),
-  _Dest('/catadores', Icons.groups_outlined, 'Catadores', movil: false),
-  _Dest('/muestras', Icons.wine_bar_outlined, 'Muestras', movil: false),
+  _Dest('/', Iconos.inicio, 'Inicio'),
+  _Dest('/directo', Iconos.directo, 'Directo'),
+  _Dest('/mesas', Iconos.mesas, 'Mesas'),
+  _Dest('/puntuar', Iconos.puntuaciones, 'Puntuac.'),
+  _Dest('/incidencias', Iconos.incidencias, 'Incidencias'),
+  _Dest('/medallas', Iconos.medallero, 'Medallero', movil: false),
+  _Dest('/tandas', Iconos.tandas, 'Tandas', movil: false),
+  _Dest('/catadores', Iconos.catadores, 'Catadores', movil: false),
+  _Dest('/muestras', Iconos.muestras, 'Muestras', movil: false),
 ];
 
 /// Estructura adaptativa: barra inferior en móvil, rail lateral en ordenador.
@@ -74,19 +75,19 @@ class Shell extends ConsumerWidget {
                           tooltip: 'Sincronizar',
                           color: Colors.white,
                           onPressed: () => context.push('/sync'),
-                          icon: const Icon(Icons.sync_outlined),
+                          icon: const Icon(Iconos.sync),
                         ),
                         IconButton(
                           tooltip: 'Ajustes',
                           color: Colors.white,
                           onPressed: () => context.push('/configuracion'),
-                          icon: const Icon(Icons.settings_outlined),
+                          icon: const Icon(Iconos.ajustes),
                         ),
                         IconButton(
                           tooltip: 'Cerrar sesión',
                           color: Colors.white,
                           onPressed: () => cerrarSesion(context, ref),
-                          icon: const Icon(Icons.logout_outlined),
+                          icon: const Icon(Iconos.logout),
                         ),
                       ],
                     ),

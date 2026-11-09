@@ -5,9 +5,10 @@ import 'theme.dart';
 
 /// Nombre comercial visible (no confundir con applicationId / paquete).
 abstract final class MarcaApp {
-  static const nombre = 'CATARIS Gestión';
+  static const nombre = 'CATARIS';
   static const corto = 'CATARIS';
   static const assetLogo = 'assets/icon/cataris_logo.png';
+  static const assetLogoBlanco = 'assets/icon/cataris_logo_blanco.png';
 }
 
 /// Logo + nombre de la marca (login, rail, cabeceras).
@@ -33,11 +34,12 @@ class LogoCataris extends StatelessWidget {
       crossAxisAlignment: eje,
       children: [
         Image.asset(
-          MarcaApp.assetLogo,
+          nombreClaro ? MarcaApp.assetLogoBlanco : MarcaApp.assetLogo,
           width: tamano,
           height: tamano,
           filterQuality: FilterQuality.high,
-          errorBuilder: (_, _, _) => Icon(Icons.workspace_premium, size: tamano * 0.85, color: Virtus.accion),
+          errorBuilder: (_, _, _) =>
+              Icon(Icons.workspace_premium, size: tamano * 0.85, color: nombreClaro ? Colors.white : Virtus.accion),
         ),
         if (mostrarNombre) ...[
           SizedBox(height: tamano > 64 ? 12 : 6),
@@ -66,7 +68,7 @@ class IconoCataris extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Image.asset(
-      MarcaApp.assetLogo,
+      fondoOscuro ? MarcaApp.assetLogoBlanco : MarcaApp.assetLogo,
       width: tamano,
       height: tamano,
       filterQuality: FilterQuality.high,

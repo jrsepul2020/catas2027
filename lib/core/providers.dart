@@ -367,9 +367,20 @@ final diasProvider = Provider<List<Dia>>(
   ).where((d) => _delConcurso(ref, d.concursoId)).toList(),
 );
 
-/// Día de trabajo: el elegido, o el de hoy, o el primero. -1 = todos los días.
 /// true si se trabaja contra el servidor LOCAL de la sede.
 final esLocalProvider = Provider<bool>((ref) => ref.watch(entornoProvider) == Entorno.local);
+
+/// Estado de la conexión al entorno activo (CLOUD / LOCAL).
+/// Se reconsulta al cambiar entorno o revisión de clientes.
+final estadoConexionProvider = FutureProvider<(bool ok, String mensaje)>((ref) async {
+  ref.watch(entornoProvider);
+  ref.watch(revisionProvider);
+  final e = ref.read(entornoProvider);
+  final cfg = ref.read(backendsProvider).config(e);
+  if (!cfg.completa) return (false, 'Sin configurar');
+  final r = await probarConexion(cfg);
+  return (r.ok, r.mensaje);
+});
 
 /// En CLOUD solo se editan puestos en modo pruebas (App 1 es la dueña de asignaciones).
 final puedeEditarPuestosProvider = Provider<bool>((ref) {

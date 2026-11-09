@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../core/backend.dart';
 import '../core/errores.dart';
 import '../core/providers.dart';
+import 'iconos.dart';
 import 'theme.dart';
 
 bool esAncho(BuildContext c) => MediaQuery.sizeOf(c).width >= 900;
@@ -170,7 +171,104 @@ Future<bool> confirmar(
   return r ?? false;
 }
 
-/// Botón de sección del menú: pastel, icono grande centrado, tipografía oscura.
+/// Diálogo destructivo: exige escribir la clave `0000` para continuar.
+Future<bool> confirmarConClave(
+  BuildContext context, {
+  required String titulo,
+  required String texto,
+  String si = 'Continuar',
+  String clave = '0000',
+}) async {
+  final ctrl = TextEditingController();
+  final r = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (c) => AlertDialog(
+      title: Text(titulo),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(texto, style: const TextStyle(fontSize: 15, height: 1.4, color: Virtus.texto)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: ctrl,
+            autofocus: true,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Clave de confirmación', hintText: '0000'),
+            onSubmitted: (_) {
+              if (ctrl.text.trim() == clave) Navigator.pop(c, true);
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Virtus.error),
+          onPressed: () {
+            if (ctrl.text.trim() != clave) {
+              aviso(c, 'Clave incorrecta', error: true);
+              return;
+            }
+            Navigator.pop(c, true);
+          },
+          child: Text(si),
+        ),
+      ],
+    ),
+  );
+  ctrl.dispose();
+  return r ?? false;
+}
+
+/// Separador fino gris claro (filosofía maqueta).
+class SeparadorFino extends StatelessWidget {
+  const SeparadorFino({super.key, this.vertical = false, this.margen = 0});
+  final bool vertical;
+  final double margen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (vertical) {
+      return Container(
+        width: 1,
+        margin: EdgeInsets.symmetric(vertical: margen),
+        color: Virtus.separador,
+      );
+    }
+    return Container(
+      height: 1,
+      margin: EdgeInsets.symmetric(horizontal: margen),
+      color: Virtus.separador,
+    );
+  }
+}
+
+/// Contenedor blanco con borde (sin relleno de color de marca).
+class CajaBorde extends StatelessWidget {
+  const CajaBorde({super.key, required this.child, this.padding, this.colorBorde});
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final Color? colorBorde;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding ?? const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Virtus.superficie,
+        borderRadius: BorderRadius.circular(Virtus.radio),
+        border: Border.all(color: colorBorde ?? Virtus.borde, width: Virtus.grosorBorde),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Botón de sección: pastel de marca (azul), icono grande centrado.
+/// [color] solo para estados (p. ej. incidencias en rojo).
 class Baldosa extends StatelessWidget {
   const Baldosa({
     super.key,
@@ -191,8 +289,8 @@ class Baldosa extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final acento = color ?? Virtus.accion;
-    final fondo = Color.lerp(Colors.white, acento, 0.12)!;
-    final borde = Color.lerp(Colors.white, acento, 0.32)!;
+    final fondo = color == null ? Virtus.accionSuave : Color.lerp(Colors.white, acento, 0.12)!;
+    final borde = color == null ? Virtus.borde : Color.lerp(Colors.white, acento, 0.28)!;
     final k = esCompacto(context);
     return Material(
       color: fondo,
@@ -204,44 +302,39 @@ class Baldosa extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(Virtus.radio),
-            border: Border.all(color: borde, width: 1.2),
+            border: Border.all(color: borde, width: Virtus.grosorBorde),
           ),
-          padding: EdgeInsets.symmetric(horizontal: k ? 6 : 10, vertical: k ? 6 : 8),
+          padding: EdgeInsets.symmetric(horizontal: k ? 6 : 10, vertical: k ? 4 : 6),
           child: Stack(
             children: [
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Icon(icono, size: k ? 28 : 34, color: acento),
-                  SizedBox(height: k ? 4 : 6),
-                  Text(
-                    texto,
-                    maxLines: 2,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: k ? 12 : 13,
-                      fontWeight: FontWeight.w700,
-                      color: Virtus.texto,
-                      height: 1.1,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  if (sub != null)
-                    Text(
-                      sub!,
-                      maxLines: 1,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: k ? 10 : 11,
-                        height: 1.15,
-                        fontWeight: FontWeight.w500,
-                        color: Virtus.textoSecundario,
+              Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(icono, size: k ? 26 : 30, color: acento),
+                      SizedBox(height: k ? 3 : 4),
+                      Text(
+                        texto,
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: VirtusTexto.titulo(size: k ? 12 : 13),
                       ),
-                    ),
-                ],
+                      if (sub != null)
+                        Text(
+                          sub!,
+                          maxLines: 1,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: VirtusTexto.tenue(size: k ? 10 : 11),
+                        ),
+                    ],
+                  ),
+                ),
               ),
               if ((badge ?? 0) > 0)
                 Positioned(
@@ -286,40 +379,36 @@ class TarjetaResumen extends StatelessWidget {
     final k = esCompacto(context);
     final acento = alerta ? Virtus.error : (color ?? Virtus.textoSecundario);
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: k ? 6 : 10, vertical: k ? 6 : 8),
+      padding: EdgeInsets.symmetric(horizontal: k ? 4 : 8, vertical: k ? 4 : 6),
       decoration: BoxDecoration(
         color: Virtus.superficie,
         borderRadius: BorderRadius.circular(Virtus.radioSm),
         border: Border.all(color: alerta ? Virtus.error : Virtus.borde, width: alerta ? 1.5 : 1),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (icono != null) Icon(icono, size: k ? 14 : 16, color: acento),
-          if (icono != null) SizedBox(height: k ? 2 : 3),
-          Text(
-            titulo,
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: k ? 10 : 11, fontWeight: FontWeight.w600, color: Virtus.textoSecundario),
-          ),
-          SizedBox(height: k ? 2 : 3),
-          Text(
-            valor,
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: k ? 16 : 20,
-              fontWeight: FontWeight.w800,
-              color: Virtus.texto,
-              height: 1.05,
-              letterSpacing: -0.3,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icono != null) Icon(icono, size: k ? 13 : 15, color: acento),
+            if (icono != null) const SizedBox(height: 2),
+            Text(
+              titulo,
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style: VirtusTexto.tenue(size: k ? 10 : 11),
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Text(
+              valor,
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style: VirtusTexto.importante(size: k ? 15 : 18),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -376,14 +465,14 @@ class _IconoEstadoTMState extends State<IconoEstadoTM> with SingleTickerProvider
     late final IconData icono;
     switch (widget.estado) {
       case 'pendiente':
-        icono = Icons.schedule_outlined;
+        icono = Iconos.reloj;
       case 'activa':
       case 'en_curso':
-        icono = Icons.play_circle_outline;
+        icono = Iconos.play;
       case 'completada':
-        icono = Icons.check_circle;
+        icono = Iconos.check;
       case 'incidencia':
-        icono = Icons.warning_amber_outlined;
+        icono = Iconos.incidencias;
       default:
         icono = info.$2;
     }
@@ -401,7 +490,7 @@ class _IconoEstadoTMState extends State<IconoEstadoTM> with SingleTickerProvider
 Widget botonVolver(BuildContext context, {String destino = '/'}) {
   return IconButton(
     tooltip: 'Volver',
-    icon: const Icon(Icons.arrow_back),
+    icon: const Icon(Iconos.volver),
     onPressed: () {
       if (context.canPop()) {
         context.pop();
@@ -412,15 +501,33 @@ Widget botonVolver(BuildContext context, {String destino = '/'}) {
   );
 }
 
-/// Indicador del entorno activo (CLOUD / LOCAL). Pulsar para cambiar.
+/// Indicador CLOUD/LOCAL + estado de conexión (verde si responde).
+/// Pulsar: cambiar entorno. Mantener: modo pruebas. Doble tocado: reprobar.
 class ChipEntorno extends ConsumerWidget {
-  const ChipEntorno({super.key});
+  const ChipEntorno({super.key, this.ampliado = false});
+
+  /// En cabecera de Inicio: muestra «Conectado · CLOUD/LOCAL».
+  final bool ampliado;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final e = ref.watch(entornoProvider);
     final cloud = e == Entorno.cloud;
-    final color = cloud ? Virtus.accion : Virtus.marino;
+    final estado = ref.watch(estadoConexionProvider);
+    final conectado = estado.maybeWhen(data: (v) => v.$1, orElse: () => false);
+    final cargando = estado.isLoading;
+    final colorEstado = cargando
+        ? Colors.white70
+        : conectado
+        ? Virtus.exito
+        : Virtus.error;
+    final etiqueta = cargando
+        ? 'Comprobando…'
+        : conectado
+        ? 'Conectado · ${e.corto}'
+        : 'Sin conexión · ${e.corto}';
+    final etiquetaCorta = cargando ? '…' : e.corto;
+
     Future<void> cambiar() async {
       final ok = await confirmar(
         context,
@@ -439,28 +546,35 @@ class ChipEntorno extends ConsumerWidget {
       }
     }
 
-    if (esCompacto(context)) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 6),
-        child: Tooltip(
-          message: '${e.largo} · mantén pulsado: modo pruebas',
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: cambiar,
-            onLongPress: toggleDiagnostico,
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.white.withValues(alpha: 0.16),
-              child: Icon(cloud ? Icons.cloud_outlined : Icons.dns_outlined, color: Colors.white, size: 18),
-            ),
-          ),
+    final compacto = esCompacto(context) && !ampliado;
+    final hijo = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: ampliado ? 9 : 8,
+          height: ampliado ? 9 : 8,
+          decoration: BoxDecoration(color: colorEstado, shape: BoxShape.circle),
         ),
-      );
-    }
+        SizedBox(width: ampliado ? 8 : 6),
+        if (!compacto) ...[
+          Icon(cloud ? Iconos.nube : Icons.dns_outlined, color: Colors.white, size: ampliado ? 18 : 16),
+          const SizedBox(width: 6),
+        ],
+        Text(
+          ampliado ? etiqueta : etiquetaCorta,
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: ampliado ? 13 : 12),
+        ),
+      ],
+    );
+
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: GestureDetector(
-        onLongPress: toggleDiagnostico,
+      padding: EdgeInsets.only(right: ampliado ? 8 : 6),
+      child: Tooltip(
+        message: [
+          e.largo,
+          estado.maybeWhen(data: (v) => v.$2, orElse: () => 'Comprobando conexión…'),
+          'Toca: cambiar entorno · mantén: modo pruebas',
+        ].join('\n'),
         child: Material(
           color: Colors.white.withValues(alpha: 0.14),
           shape: RoundedRectangleBorder(
@@ -470,25 +584,11 @@ class ChipEntorno extends ConsumerWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(Virtus.radioSm),
             onTap: cambiar,
+            onLongPress: toggleDiagnostico,
+            onDoubleTap: () => ref.invalidate(estadoConexionProvider),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(cloud ? Icons.cloud_outlined : Icons.dns_outlined, color: Colors.white, size: 18),
-                  const SizedBox(width: 6),
-                  Text(
-                    e.corto,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
-                  ),
-                  Container(
-                    width: 7,
-                    height: 7,
-                    margin: const EdgeInsets.only(left: 8),
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ),
-                ],
-              ),
+              padding: EdgeInsets.symmetric(horizontal: ampliado ? 12 : 8, vertical: ampliado ? 8 : 7),
+              child: hijo,
             ),
           ),
         ),
@@ -904,22 +1004,22 @@ final estadosTanda = <String, InfoEstado>{
 };
 InfoEstado infoTanda(String e) => estadosTanda[e] ?? (e, Icons.help_outline, Virtus.mcNeutro);
 
-/// tanda_muestras.estado
+/// tanda_muestras.estado — verde/rojo solo en positivo/negativo.
 final estadosTM = <String, InfoEstado>{
-  'pendiente': ('Pendiente', Icons.schedule_outlined, Virtus.mcAccion),
-  'activa': ('Activa', Icons.play_circle_outline, Virtus.mcAdvertencia),
-  'en_curso': ('En curso', Icons.play_circle_outline, Virtus.mcAdvertencia),
-  'completada': ('Completada', Icons.check_circle, Virtus.mcExito),
-  'incidencia': ('Incidencia', Icons.warning_amber_outlined, Virtus.mcError),
-  'pospuesta': ('Pospuesta', Icons.update_outlined, Virtus.mcNeutro),
+  'pendiente': ('Pendiente', Iconos.reloj, Virtus.mcAccion),
+  'activa': ('Activa', Iconos.play, Virtus.mcAdvertencia),
+  'en_curso': ('En curso', Iconos.play, Virtus.mcAdvertencia),
+  'completada': ('Completada', Iconos.check, Virtus.mcExito),
+  'incidencia': ('Incidencia', Iconos.incidencias, Virtus.mcError),
+  'pospuesta': ('Pospuesta', Iconos.reloj, Virtus.mcNeutro),
 };
 InfoEstado infoTM(String e) => estadosTM[e] ?? (e, Icons.help_outline, Virtus.mcNeutro);
 
-/// puntuaciones.estado
+/// puntuaciones.estado — verde = positivo.
 final estadosNota = <String, InfoEstado>{
-  'borrador': ('Borrador', Icons.edit_outlined, Virtus.mcNeutro),
-  'enviada': ('Enviada', Icons.send_outlined, Virtus.mcAccion),
-  'aprobada': ('Aprobada', Icons.verified_outlined, Virtus.mcExito),
+  'borrador': ('Borrador', Iconos.editar, Virtus.mcNeutro),
+  'enviada': ('Enviada', Iconos.enviar, Virtus.mcAccion),
+  'aprobada': ('Aprobada', Iconos.check, Virtus.mcExito),
 };
 
 const medallas = {
@@ -1035,7 +1135,7 @@ class Campo extends StatelessWidget {
   );
 }
 
-/// Acción en hojas inferiores: se ve como botón (borde + fondo pastel).
+/// Acción en hojas inferiores: botón con borde + pastel de marca (o estado).
 class AccionHoja extends StatelessWidget {
   const AccionHoja({super.key, required this.titulo, required this.onTap, this.subtitulo, this.icono, this.color});
   final String titulo;
@@ -1048,8 +1148,9 @@ class AccionHoja extends StatelessWidget {
   Widget build(BuildContext context) {
     final k = esCompacto(context);
     final c = color ?? Virtus.accion;
-    final fondo = Color.lerp(Colors.white, c, 0.12)!;
-    final borde = Color.lerp(Colors.white, c, 0.36)!;
+    final esEstado = c == Virtus.error || c == Virtus.exito || c == Virtus.advertencia;
+    final fondo = esEstado ? Color.lerp(Colors.white, c, 0.10)! : Virtus.accionSuave;
+    final borde = esEstado ? Color.lerp(Colors.white, c, 0.28)! : Virtus.borde;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: k ? 12 : 16, vertical: k ? 4 : 5),
       child: Material(
@@ -1063,7 +1164,7 @@ class AccionHoja extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: k ? 14 : 16, vertical: k ? 12 : 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(Virtus.radio),
-              border: Border.all(color: borde, width: 1.4),
+              border: Border.all(color: borde, width: Virtus.grosorBorde),
             ),
             child: Row(
               children: [
@@ -1072,19 +1173,12 @@ class AccionHoja extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        titulo,
-                        style: TextStyle(fontSize: k ? 16 : 17, fontWeight: FontWeight.w800, color: Virtus.texto),
-                      ),
-                      if (subtitulo != null)
-                        Text(
-                          subtitulo!,
-                          style: TextStyle(fontSize: k ? 12 : 13, color: Virtus.textoSecundario, height: 1.2),
-                        ),
+                      Text(titulo, style: VirtusTexto.importante(size: k ? 16 : 17)),
+                      if (subtitulo != null) Text(subtitulo!, style: VirtusTexto.tenue(size: k ? 12 : 13)),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: c.withValues(alpha: 0.7), size: k ? 22 : 24),
+                Icon(Icons.chevron_right, color: Virtus.textoTenue, size: k ? 22 : 24),
               ],
             ),
           ),

@@ -22,18 +22,20 @@ enum Entorno {
   String get claveKey => '${corto}_ANON_KEY';
 }
 
-/// Clave anon "demo" que usa siempre `supabase start` en local.
-const _anonLocalDemo =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDjblYTn_I0';
+/// Valores de fábrica si no hay `--dart-define` ni ajustes en el dispositivo.
+const _cloudUrlDefecto = 'https://mdqgfkpbqydctpjukpuw.supabase.co';
+const _cloudKeyDefecto = 'sb_publishable_g3G6z9qqXHu4TGiYmBQTUw_DzWJ1reP';
+const _localUrlDefecto = 'http://192.168.0.209:8000';
+const _localKeyDefecto = 'sb_publishable_ACJWIzQHlZjBrEguHvfOxg_3BJgxAaH';
 
 /// Valores incrustados al compilar con
 /// `--dart-define-from-file=config/entornos.json` (ver tool/build_apk.sh).
 abstract final class ConfigBuild {
-  static const cloudUrl = String.fromEnvironment('CLOUD_URL');
-  static const cloudKey = String.fromEnvironment('CLOUD_ANON_KEY');
-  static const localUrl = String.fromEnvironment('LOCAL_URL');
-  static const localKey = String.fromEnvironment('LOCAL_ANON_KEY');
-  static const entornoInicial = String.fromEnvironment('ENTORNO_INICIAL');
+  static const cloudUrl = String.fromEnvironment('CLOUD_URL', defaultValue: _cloudUrlDefecto);
+  static const cloudKey = String.fromEnvironment('CLOUD_ANON_KEY', defaultValue: _cloudKeyDefecto);
+  static const localUrl = String.fromEnvironment('LOCAL_URL', defaultValue: _localUrlDefecto);
+  static const localKey = String.fromEnvironment('LOCAL_ANON_KEY', defaultValue: _localKeyDefecto);
+  static const entornoInicial = String.fromEnvironment('ENTORNO_INICIAL', defaultValue: 'cloud');
 }
 
 enum OrigenConfig {
@@ -59,30 +61,20 @@ class ConfigEntorno {
     return u != null && (u.scheme == 'http' || u.scheme == 'https') && u.host.isNotEmpty && anonKey.trim().isNotEmpty;
   }
 
-  /// Configuración de fábrica: la del build y, si no hay, un valor razonable.
+  /// Configuración de fábrica: dart-define (o los valores por defecto del proyecto).
   static ConfigEntorno deFabrica(Entorno e) {
     switch (e) {
       case Entorno.cloud:
-        return ConfigEntorno(
-          url: ConfigBuild.cloudUrl,
-          anonKey: ConfigBuild.cloudKey,
-          origen: ConfigBuild.cloudUrl.isEmpty ? OrigenConfig.vacia : OrigenConfig.build,
-        );
+        return ConfigEntorno(url: ConfigBuild.cloudUrl, anonKey: ConfigBuild.cloudKey, origen: OrigenConfig.build);
       case Entorno.local:
-        if (ConfigBuild.localUrl.isNotEmpty) {
-          return ConfigEntorno(
-            url: ConfigBuild.localUrl,
-            anonKey: ConfigBuild.localKey.isNotEmpty ? ConfigBuild.localKey : _anonLocalDemo,
-            origen: OrigenConfig.build,
-          );
+        var url = ConfigBuild.localUrl;
+        // Emulador Android: localhost del host.
+        if (!kIsWeb &&
+            defaultTargetPlatform == TargetPlatform.android &&
+            (url.contains('127.0.0.1') || url.contains('localhost'))) {
+          url = url.replaceFirst(RegExp(r'127\.0\.0\.1|localhost'), '10.0.2.2');
         }
-        return ConfigEntorno(
-          url: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-              ? 'http://10.0.2.2:54321' // emulador Android -> ordenador
-              : 'http://127.0.0.1:54321',
-          anonKey: _anonLocalDemo,
-          origen: OrigenConfig.porDefecto,
-        );
+        return ConfigEntorno(url: url, anonKey: ConfigBuild.localKey, origen: OrigenConfig.build);
     }
   }
 }

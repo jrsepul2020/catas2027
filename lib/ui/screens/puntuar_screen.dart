@@ -9,91 +9,45 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'incidencias_screen.dart';
 
-/// Lista de tandas del día: primero las abiertas.
-class PuntuarScreen extends ConsumerWidget {
+/// Lista de tandas del día: primero las abiertas. Filtro activas / inactivas.
+class PuntuarScreen extends ConsumerStatefulWidget {
   const PuntuarScreen({super.key});
+  @override
+  ConsumerState<PuntuarScreen> createState() => _PuntuarScreenState();
+}
+
+class _PuntuarScreenState extends ConsumerState<PuntuarScreen> {
+  /// null = todas · true = abiertas · false = pendientes/cerradas
+  bool? _soloActivas = true;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final tandas = ref.watch(tandasProvider);
     final mesas = ref.watch(mesaPorIdProvider);
+    final repo = ref.read(repoProvider)!;
     final k = esCompacto(context);
     const peso = {'abierta': 0, 'pendiente': 1, 'cerrada': 2};
-    final l = [...tandas]
-      ..sort((a, b) {
-        final p = (peso[a.estado] ?? 1).compareTo(peso[b.estado] ?? 1);
-        if (p != 0) return p;
-        final ma = mesas[a.mesaId]?.numero ?? 999, mb = mesas[b.mesaId]?.numero ?? 999;
-        return ma != mb ? ma.compareTo(mb) : a.orden.compareTo(b.orden);
-      });
-    Widget tarjeta(Tanda t) {
-      final info = infoTanda(t.estado);
-      final tms = ref.watch(muestrasDeTandaProvider(t.id));
-      final hechas = tms.where((x) => x.estado == 'completada').length;
-      final activa = tms.where((x) => x.estado == 'activa').firstOrNull;
-      final muestrasIdx = ref.watch(muestraPorIdProvider);
-      final codigo = activa == null ? null : muestrasIdx[activa.muestraId]?.codigo;
-      final acento = info.$3.shade700;
-      final fondo = Color.lerp(Colors.white, info.$3.shade400, t.estado == 'abierta' ? 0.18 : 0.10)!;
-      final borde = Color.lerp(Colors.white, info.$3.shade600, 0.35)!;
-      return Material(
-        color: fondo,
-        borderRadius: BorderRadius.circular(Virtus.radio),
-        child: InkWell(
-          onTap: () => context.go('/puntuar/${t.id}'),
-          borderRadius: BorderRadius.circular(Virtus.radio),
-          child: Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(horizontal: k ? 14 : 18, vertical: k ? 12 : 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Virtus.radio),
-              border: Border.all(color: borde, width: 1.4),
-            ),
-            child: Row(
-              children: [
-                Icon(info.$2, size: k ? 28 : 32, color: acento),
-                SizedBox(width: k ? 12 : 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        mesas[t.mesaId]?.nombre ?? 'Sin mesa',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: k ? 17 : 20, fontWeight: FontWeight.w900, color: Virtus.texto),
-                      ),
-                      Text(
-                        [t.nombre, info.$1, '$hechas/${tms.length}', if (codigo != null) 'Activa $codigo'].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: k ? 13 : 15,
-                          fontWeight: FontWeight.w700,
-                          color: codigo != null ? Paleta.azulOscuro : Virtus.textoSecundario,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, size: k ? 26 : 30, color: acento),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+    final filtradas =
+        tandas.where((t) {
+          if (_soloActivas == null) return true;
+          return _soloActivas! ? t.estado == 'abierta' : t.estado != 'abierta';
+        }).toList()..sort((a, b) {
+          final p = (peso[a.estado] ?? 1).compareTo(peso[b.estado] ?? 1);
+          if (p != 0) return p;
+          final ma = mesas[a.mesaId]?.numero ?? 999, mb = mesas[b.mesaId]?.numero ?? 999;
+          return ma != mb ? ma.compareTo(mb) : a.orden.compareTo(b.orden);
+        });
 
     final problema = avisoCarga(
       ref,
       que: 'Cargar puntuaciones (tandas del día)',
       tablas: const ['tandas', 'tanda_muestras', 'mesas', 'muestras', 'puntuaciones'],
-      vacio: l.isEmpty,
+      vacio: tandas.isEmpty,
       queHacerSiVacio:
           'No hay tandas para el día del chip. Cambia el día o elige «Todos los días». '
           'Si el resumen del inicio muestra 0 tandas, Cloud no está devolviendo la tabla.',
     );
+
     return Scaffold(
       appBar: AppBar(
         leading: botonVolver(context),
@@ -104,12 +58,162 @@ class PuntuarScreen extends ConsumerWidget {
           problema ??
           Ancho(
             max: 900,
-            child: ListaLlena(
-              itemCount: l.length,
-              gap: k ? 8 : 12,
-              padding: EdgeInsets.all(k ? 10 : 14),
-              altoMinimo: k ? 72 : 84,
-              itemBuilder: (c, i) => tarjeta(l[i]),
+            child: Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(k ? 10 : 14, k ? 8 : 10, k ? 10 : 14, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SegmentedButton<bool?>(
+                          segments: const [
+                            ButtonSegment(value: true, label: Text('Activas'), icon: Icon(Icons.play_arrow, size: 18)),
+                            ButtonSegment(value: false, label: Text('Inactivas'), icon: Icon(Icons.pause, size: 18)),
+                            ButtonSegment(value: null, label: Text('Todas')),
+                          ],
+                          selected: {_soloActivas},
+                          onSelectionChanged: (s) => setState(() => _soloActivas = s.first),
+                          style: ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                            textStyle: WidgetStatePropertyAll(
+                              TextStyle(fontSize: k ? 12 : 13, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: filtradas.isEmpty
+                      ? Vacio(
+                          icono: Icons.table_chart_outlined,
+                          texto: _soloActivas == true
+                              ? 'No hay tandas activas'
+                              : _soloActivas == false
+                              ? 'No hay tandas inactivas'
+                              : 'No hay tandas',
+                        )
+                      : ListView.separated(
+                          padding: EdgeInsets.all(k ? 10 : 14),
+                          itemCount: filtradas.length,
+                          separatorBuilder: (_, _) => SizedBox(height: k ? 8 : 10),
+                          itemBuilder: (c, i) {
+                            final t = filtradas[i];
+                            final info = infoTanda(t.estado);
+                            final tms = ref.watch(muestrasDeTandaProvider(t.id));
+                            final hechas = tms.where((x) => x.estado == 'completada').length;
+                            final activa = tms.where((x) => x.estado == 'activa').firstOrNull;
+                            final muestrasIdx = ref.watch(muestraPorIdProvider);
+                            final muestra = activa == null ? null : muestrasIdx[activa.muestraId];
+                            final paso = activa?.orden;
+                            final abierta = t.estado == 'abierta';
+                            final borde = abierta ? Virtus.advertencia.withValues(alpha: 0.55) : Virtus.borde;
+
+                            return Material(
+                              color: Virtus.superficie,
+                              borderRadius: BorderRadius.circular(Virtus.radioSm),
+                              child: InkWell(
+                                onTap: () => context.go('/puntuar/${t.id}'),
+                                borderRadius: BorderRadius.circular(Virtus.radioSm),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: EdgeInsets.fromLTRB(k ? 12 : 14, k ? 10 : 12, k ? 8 : 10, k ? 10 : 12),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(Virtus.radioSm),
+                                    border: Border.all(color: borde, width: abierta ? 1.6 : 1),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              t.nombre,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: VirtusTexto.importante(size: k ? 20 : 24),
+                                            ),
+                                            SizedBox(height: k ? 2 : 4),
+                                            Text(
+                                              muestra == null ? 'Sin muestra activa' : 'Activa ${muestra.codigo}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: VirtusTexto.importante(
+                                                size: k ? 16 : 18,
+                                                color: muestra != null ? Virtus.accion : Virtus.textoSecundario,
+                                              ),
+                                            ),
+                                            SizedBox(height: k ? 2 : 3),
+                                            Text(
+                                              [
+                                                mesas[t.mesaId]?.nombre ?? 'Sin mesa',
+                                                if (paso != null) 'Paso $paso/${tms.length}',
+                                                if (muestra?.codigoTexto != null &&
+                                                    muestra!.codigoTexto != muestra.codigo)
+                                                  'Ref. ${muestra.codigoTexto}',
+                                                if (paso == null) '$hechas/${tms.length}',
+                                                info.$1,
+                                              ].join(' · '),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: VirtusTexto.importante(
+                                                size: k ? 13 : 15,
+                                                color: Virtus.textoSecundario,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(width: k ? 6 : 8),
+                                      FilledButton.tonal(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: abierta ? Virtus.exitoSuave : Virtus.accionSuave,
+                                          foregroundColor: abierta ? Virtus.exito : Virtus.accion,
+                                          padding: EdgeInsets.symmetric(horizontal: k ? 10 : 12, vertical: k ? 8 : 10),
+                                          minimumSize: Size(k ? 88 : 100, k ? 40 : 44),
+                                          textStyle: TextStyle(fontSize: k ? 12 : 13, fontWeight: FontWeight.w800),
+                                        ),
+                                        onPressed: () async {
+                                          if (abierta) {
+                                            final ok = await confirmar(
+                                              context,
+                                              '¿Desactivar ${t.nombre}?',
+                                              texto: 'La tanda pasará a pendiente (ya no estará en curso).',
+                                              si: 'Desactivar',
+                                            );
+                                            if (!ok || !context.mounted) return;
+                                            await ejecutar(
+                                              context,
+                                              () => repo.estadoTanda(t.id, 'pendiente'),
+                                              ok: '${t.nombre} desactivada',
+                                              accion: 'Desactivar tanda',
+                                              refrescar: const ['tandas'],
+                                            );
+                                          } else {
+                                            await ejecutar(
+                                              context,
+                                              () => repo.estadoTanda(t.id, 'abierta'),
+                                              ok: '${t.nombre} activada',
+                                              accion: 'Activar tanda',
+                                              refrescar: const ['tandas'],
+                                            );
+                                          }
+                                        },
+                                        child: Text(abierta ? 'Activa' : 'Activar'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
           ),
     );

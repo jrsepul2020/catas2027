@@ -111,7 +111,7 @@ class VirtusCatasApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
-    title: 'CATARIS Gestión',
+    title: 'CATARIS',
     debugShowCheckedModeBanner: false,
     // Siempre tema claro (paleta fija) y compacto en teléfono.
     theme: tema(),

@@ -156,7 +156,7 @@ Future<void> editarMuestra(BuildContext context, WidgetRef ref, Muestra m) async
   );
 }
 
-/// Modal de muestra existente: código grande, estado, notas y acciones de tanda.
+/// Modal de muestra: puntuaciones de la mesa, total, medalla y observaciones.
 class _HojaMuestra extends ConsumerStatefulWidget {
   const _HojaMuestra({required this.muestraId});
   final int muestraId;
@@ -165,15 +165,19 @@ class _HojaMuestra extends ConsumerStatefulWidget {
 }
 
 class _HojaMuestraState extends ConsumerState<_HojaMuestra> {
-  late final TextEditingController _texto;
-  late int? _categoria;
-  late bool _activa;
+  late final TextEditingController _obs;
   var _iniciado = false;
 
   @override
   void dispose() {
-    if (_iniciado) _texto.dispose();
+    if (_iniciado) _obs.dispose();
     super.dispose();
+  }
+
+  static String _fmt(double? v) {
+    if (v == null) return '–';
+    final s = v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+    return s.replaceAll('.', ',');
   }
 
   @override
@@ -183,25 +187,36 @@ class _HojaMuestraState extends ConsumerState<_HojaMuestra> {
       return const Padding(padding: EdgeInsets.all(24), child: Text('Muestra no encontrada'));
     }
     if (!_iniciado) {
-      _texto = TextEditingController(text: m.codigoTexto ?? '');
-      _categoria = m.categoriaId;
-      _activa = m.activa;
+      _obs = TextEditingController(text: m.observaciones ?? '');
       _iniciado = true;
     }
     final repo = ref.read(repoProvider)!;
     final cats = ref.watch(categoriasProvider);
+    final catNombre = {for (final c in cats) c.id: c.nombre};
     final tm = ref.watch(tandaMuestrasProvider).where((x) => x.muestraId == m.id).firstOrNull;
     final tanda = tm == null ? null : ref.watch(tandaPorIdProvider)[tm.tandaId];
     final mesa = tanda == null ? null : ref.watch(mesaPorIdProvider)[tanda.mesaId];
-    final notas = ref.watch(puntuacionesProvider).where((p) => p.muestraId == m.id).toList()
-      ..sort((a, b) => a.catadorId.compareTo(b.catadorId));
-    final catadores = ref.watch(catadorPorIdProvider);
+    final notas = ref.watch(puntuacionesProvider).where((p) => p.muestraId == m.id).toList();
+    final porCatador = {for (final n in notas) n.catadorId: n};
+    final catadoresIdx = ref.watch(catadorPorIdProvider);
+    final deMesa = tanda?.mesaId == null ? const <Catador>[] : ref.watch(catadoresDeMesaProvider(tanda!.mesaId!));
+    // Filas: puestos de la mesa; si no hay mesa, los catadores que ya puntuaron.
+    final filas = deMesa.isNotEmpty
+        ? deMesa
+        : [
+            for (final n
+                in [...notas]..sort((a, b) {
+                  final pa = catadoresIdx[a.catadorId]?.puesto ?? 999;
+                  final pb = catadoresIdx[b.catadorId]?.puesto ?? 999;
+                  return pa.compareTo(pb);
+                }))
+              catadoresIdx[n.catadorId],
+          ].whereType<Catador>().toList();
+    final resultado = ref.watch(resultadosProvider).where((r) => r.muestraId == m.id).firstOrNull;
     final k = esCompacto(context);
     final info = tm == null ? null : infoTM(tm.estado);
-    final conTotal = notas.where((n) => n.total != null).toList();
-    final mediaFinal = conTotal.isEmpty
-        ? null
-        : conTotal.map((n) => n.total!).reduce((a, b) => a + b) / conTotal.length;
+    final media = resultado?.media;
+    final medallaClave = resultado?.medalla;
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
@@ -213,18 +228,19 @@ class _HojaMuestraState extends ConsumerState<_HojaMuestra> {
             Text(
               m.codigo,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: k ? 42 : 52,
-                fontWeight: FontWeight.w900,
-                height: 1.05,
-                color: Paleta.azulOscuro,
-              ),
+              style: TextStyle(fontSize: k ? 42 : 52, fontWeight: FontWeight.w900, height: 1.05, color: Virtus.marino),
             ),
             if (m.codigoTexto != null && m.codigoTexto != m.codigo)
               Text(
                 m.codigoTexto!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: k ? 16 : 18, fontWeight: FontWeight.w600),
+                style: VirtusTexto.titulo(size: k ? 15 : 17),
+              ),
+            if (catNombre[m.categoriaId] != null)
+              Text(
+                catNombre[m.categoriaId]!,
+                textAlign: TextAlign.center,
+                style: VirtusTexto.tenue(size: k ? 12 : 13),
               ),
             const SizedBox(height: 10),
             Wrap(
@@ -237,56 +253,63 @@ class _HojaMuestraState extends ConsumerState<_HojaMuestra> {
                 if (tanda != null)
                   Text(
                     [mesa?.nombre, tanda.nombre].whereType<String>().join(' · '),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: VirtusTexto.titulo(size: 15),
                   )
                 else
-                  const Text('Sin tanda', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                if (mediaFinal != null)
-                  Text(
-                    'Media ${mediaFinal.toStringAsFixed(1).replaceAll('.', ',')}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Paleta.azulOscuro),
-                  ),
+                  Text('Sin tanda', style: VirtusTexto.titulo(size: 15)),
               ],
             ),
             if (notas.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Puntuaciones',
-                style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  for (final n in notas)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: (estadosNota[n.estado]?.$3 ?? Colors.blue).shade100,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'P${catadores[n.catadorId]?.puesto ?? '–'} '
-                        '${n.total?.toStringAsFixed(n.total == n.total!.roundToDouble() ? 0 : 1).replaceAll('.', ',') ?? '–'}'
-                        ' · ${estadosNota[n.estado]?.$1 ?? n.estado}',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                      ),
+                  Expanded(
+                    child: Text('Puntuaciones', style: VirtusTexto.titulo(size: k ? 15 : 17)),
+                  ),
+                  if (media != null)
+                    Text(
+                      'Total ${_fmt(media)}',
+                      style: VirtusTexto.importante(size: k ? 18 : 20, color: Virtus.marino),
                     ),
+                  if (medallaClave != null) ...[const SizedBox(width: 10), Medalla(medallaClave)],
                 ],
+              ),
+              if (medallaClave != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  resultado?.oficial != null
+                      ? 'Medalla oficial: ${medallas[resultado!.oficial]?.$1 ?? resultado.oficial}'
+                      : 'Medalla propuesta: ${medallas[resultado?.propuesta]?.$1 ?? resultado?.propuesta ?? ''}',
+                  style: VirtusTexto.tenue(size: k ? 11 : 12),
+                  textAlign: TextAlign.end,
+                ),
+              ],
+              const SizedBox(height: 8),
+              CajaBorde(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < filas.length; i++) ...[
+                      if (i > 0) const SeparadorFino(),
+                      _FilaNota(catador: filas[i], nota: porCatador[filas[i].id], fmt: _fmt),
+                    ],
+                    if (filas.isEmpty)
+                      for (final n in notas) ...[
+                        if (n != notas.first) const SeparadorFino(),
+                        _FilaNota(catador: catadoresIdx[n.catadorId], nota: n, fmt: _fmt),
+                      ],
+                  ],
+                ),
               ),
             ],
             if (tm != null) ...[
               const SizedBox(height: 14),
-              Text(
-                'Acciones de cata',
-                style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w800),
-              ),
+              Text('Acciones de cata', style: VirtusTexto.titulo(size: k ? 15 : 17)),
               const SizedBox(height: 6),
               if (tm.estado != 'activa')
                 AccionHoja(
-                  icono: Icons.play_circle_fill,
-                  color: Paleta.amarillo,
+                  icono: Icons.play_circle_outline,
+                  color: Virtus.advertencia,
                   titulo: 'Abrir para cata',
                   subtitulo: 'La pone como ACTIVA (la ven las tablets)',
                   onTap: () async {
@@ -295,8 +318,8 @@ class _HojaMuestraState extends ConsumerState<_HojaMuestra> {
                   },
                 ),
               AccionHoja(
-                icono: Icons.replay,
-                color: Paleta.lila,
+                icono: Icons.replay_outlined,
+                color: Virtus.accion,
                 titulo: 'Recatar desde cero',
                 subtitulo: 'Borra notas (quedan en el registro) y vuelve a pendiente',
                 onTap: () async {
@@ -318,7 +341,7 @@ class _HojaMuestraState extends ConsumerState<_HojaMuestra> {
               ),
               AccionHoja(
                 icono: Icons.low_priority,
-                color: Paleta.azul,
+                color: Virtus.marino,
                 titulo: 'Pasar al final de la tanda',
                 subtitulo: 'Borra notas y la coloca la última',
                 onTap: () async {
@@ -339,65 +362,90 @@ class _HojaMuestraState extends ConsumerState<_HojaMuestra> {
                 },
               ),
             ],
-            const SizedBox(height: 12),
-            Text(
-              'Datos',
-              style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Campo(_texto, 'Código de texto / referencia'),
-            DropdownButtonFormField<int?>(
-              initialValue: _categoria,
-              isExpanded: true,
-              style: TextStyle(fontSize: 19, color: Theme.of(context).colorScheme.onSurface),
-              decoration: const InputDecoration(labelText: 'Categoría'),
-              items: [for (final x in cats) DropdownMenuItem(value: x.id, child: Text(x.nombre))],
-              onChanged: (v) => setState(() => _categoria = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Activa'),
-              subtitle: const Text('Las inactivas no se catan'),
-              value: _activa,
-              onChanged: (v) => setState(() => _activa = v),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-                  onPressed: () async {
-                    if (await confirmar(context, '¿Eliminar muestra ${m.codigo}?', si: 'Eliminar') && context.mounted) {
-                      if (await ejecutar(context, () => repo.borrar('muestras', m.id)) && context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Eliminar'),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(minimumSize: Size(0, k ? 52 : 60)),
-                    onPressed: () async {
-                      final ok = await ejecutar(context, () async {
-                        await repo.actualizar('muestras', m.id, {
-                          'codigo_texto': _texto.text.trim().isEmpty ? m.codigo : _texto.text.trim(),
-                          'categoria_id': _categoria,
-                          'activo': _activa,
-                        });
-                      });
-                      if (ok && context.mounted) Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.check),
-                    label: const Text('Guardar'),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 14),
+            Text('Observaciones', style: VirtusTexto.titulo(size: k ? 15 : 17)),
+            const SizedBox(height: 6),
+            Campo(_obs, 'Nota del coordinador', lineas: 3),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(minimumSize: Size(0, k ? 52 : 60)),
+              onPressed: () async {
+                final texto = _obs.text.trim();
+                final ok = await ejecutar(
+                  context,
+                  () => repo.actualizar('muestras', m.id, {'observaciones': texto.isEmpty ? null : texto}),
+                  ok: 'Observaciones guardadas',
+                  accion: 'Guardar observaciones de muestra',
+                  refrescar: const ['muestras'],
+                );
+                if (ok && context.mounted) Navigator.pop(context);
+              },
+              icon: const Icon(Icons.check),
+              label: const Text('Guardar observaciones'),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FilaNota extends StatelessWidget {
+  const _FilaNota({required this.catador, required this.nota, required this.fmt});
+  final Catador? catador;
+  final Puntuacion? nota;
+  final String Function(double?) fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final k = esCompacto(context);
+    final puesto = catador?.puesto;
+    final nombre = catador?.nombre ?? 'Catador ${nota?.catadorId ?? ''}';
+    final estado = nota == null ? null : estadosNota[nota!.estado];
+    final total = nota?.total;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: k ? 12 : 14, vertical: k ? 10 : 12),
+      child: Row(
+        children: [
+          Container(
+            width: k ? 32 : 36,
+            height: k ? 32 : 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: catador?.esPresidente == true ? Virtus.exitoSuave : Virtus.accionSuave,
+              borderRadius: BorderRadius.circular(Virtus.radioSm),
+            ),
+            child: Text(
+              puesto?.toString() ?? '–',
+              style: VirtusTexto.importante(size: k ? 14 : 15, color: Virtus.marino),
+            ),
+          ),
+          SizedBox(width: k ? 10 : 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: VirtusTexto.titulo(size: k ? 13 : 14),
+                ),
+                Text(
+                  [
+                    if (catador?.esPresidente == true) 'Presidente',
+                    if (estado != null) estado.$1,
+                    if (nota == null) 'Sin nota',
+                  ].whereType<String>().join(' · '),
+                  style: VirtusTexto.tenue(size: k ? 11 : 12),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            fmt(total),
+            style: VirtusTexto.importante(size: k ? 18 : 20, color: total == null ? Virtus.textoTenue : Virtus.texto),
+          ),
+        ],
       ),
     );
   }

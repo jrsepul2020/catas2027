@@ -8,13 +8,15 @@ Future<Backends> nuevo([Map<String, Object> prefs = const {}]) async {
 }
 
 void main() {
-  test('sin build ni ajustes: cloud vacío, local por defecto', () async {
+  test('sin ajustes en dispositivo: usa valores por defecto de fábrica', () async {
     final b = await nuevo();
-    expect(b.config(Entorno.cloud).origen, OrigenConfig.vacia);
-    expect(b.config(Entorno.cloud).completa, isFalse);
-    expect(b.config(Entorno.local).origen, OrigenConfig.porDefecto);
+    expect(b.config(Entorno.cloud).origen, OrigenConfig.build);
+    expect(b.config(Entorno.cloud).completa, isTrue);
+    expect(b.config(Entorno.cloud).url, contains('mdqgfkpbqydctpjukpuw'));
+    expect(b.config(Entorno.local).origen, OrigenConfig.build);
     expect(b.config(Entorno.local).completa, isTrue);
-    expect(b.activo, Entorno.local);
+    expect(b.config(Entorno.local).url, contains(':8000'));
+    expect(b.activo, Entorno.cloud);
   });
 
   test('lo editado en el dispositivo manda y se puede restaurar', () async {
@@ -25,7 +27,8 @@ void main() {
     expect(c.url, 'https://abc.supabase.co'); // sin barra final
     expect(c.anonKey, 'k');
     await b.restaurar(Entorno.cloud);
-    expect(b.config(Entorno.cloud).origen, OrigenConfig.vacia);
+    expect(b.config(Entorno.cloud).origen, OrigenConfig.build);
+    expect(b.config(Entorno.cloud).completa, isTrue);
   });
 
   test('exportar e importar entre dispositivos', () async {

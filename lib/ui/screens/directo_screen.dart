@@ -3,12 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
+import '../../data/models.dart';
 import '../theme.dart';
 import '../widgets.dart';
-import 'mesas_screen.dart';
 
-/// En directo: una tarjeta grande por mesa con la tanda abierta, la muestra
-/// activa y qué catadores ya han puntuado (un punto por puesto).
+/// En directo: tandas abiertas (en curso), no un listado de mesas.
 class DirectoScreen extends ConsumerWidget {
   const DirectoScreen({super.key});
 
@@ -16,25 +15,32 @@ class DirectoScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mesas = ref.watch(mesasProvider);
     final tandas = ref.watch(tandasProvider);
+    final enCurso = tandas.where((t) => t.estado == 'abierta').toList()
+      ..sort((a, b) {
+        final ma = ref.read(mesaPorIdProvider)[a.mesaId]?.numero ?? 999;
+        final mb = ref.read(mesaPorIdProvider)[b.mesaId]?.numero ?? 999;
+        return ma != mb ? ma.compareTo(mb) : a.orden.compareTo(b.orden);
+      });
     final inc = ref.watch(incidenciasAbiertasProvider);
     final k = esCompacto(context);
     final problema =
         avisoCarga(
           ref,
-          que: 'Cargar el directo (mesas y tandas del día)',
+          que: 'Cargar el directo (tandas del día)',
           tablas: const ['mesas', 'tandas', 'tanda_muestras', 'catadores', 'puntuaciones'],
-          vacio: mesas.isEmpty,
-          queHacerSiVacio: 'No hay mesas en este concurso. Créalas en Mesas o revisa el concurso elegido.',
+          vacio: mesas.isEmpty && tandas.isEmpty,
+          queHacerSiVacio: 'No hay mesas ni tandas. Revisa el concurso o sincroniza el día.',
         ) ??
         (mesas.isNotEmpty && tandas.isEmpty
             ? RecuadroProblema(
                 que: 'Directo sin tandas para el día seleccionado',
-                error: 'mesas=${mesas.length}, tandas filtradas=0 (mira el chip de día y el resumen del inicio)',
+                error: 'mesas=${mesas.length}, tandas filtradas=0',
                 queHacer:
-                    'Pulsa el chip del calendario y elige el día donde están las tandas (o «Todos los días»). '
-                    'Si el resumen del inicio muestra 0 tandas, la tabla no está llegando desde Cloud.',
+                    'Pulsa el chip del calendario y elige el día donde están las tandas '
+                    '(o «Todos los días»).',
               )
             : null);
+
     return Scaffold(
       appBar: AppBar(
         leading: botonVolver(context),
@@ -45,7 +51,7 @@ class DirectoScreen extends ConsumerWidget {
               width: 10,
               height: 10,
               margin: const EdgeInsets.only(right: 8),
-              decoration: const BoxDecoration(color: Paleta.rojo, shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: Virtus.error, shape: BoxShape.circle),
             ),
             const Flexible(child: Text('En directo', overflow: TextOverflow.ellipsis)),
           ],
@@ -58,7 +64,7 @@ class DirectoScreen extends ConsumerWidget {
               onPressed: () => context.go('/incidencias'),
               icon: Badge(
                 label: Text('$inc'),
-                backgroundColor: Paleta.rojo,
+                backgroundColor: Virtus.error,
                 child: const Icon(Icons.warning_amber_rounded, color: Colors.white),
               ),
             ),
@@ -68,125 +74,127 @@ class DirectoScreen extends ConsumerWidget {
       ),
       body:
           problema ??
-          Ancho(
-            max: 1100,
-            child: ListaLlena(
-              itemCount: mesas.length,
-              gap: k ? 8 : 12,
-              padding: EdgeInsets.all(k ? 10 : 14),
-              altoMinimo: k ? 110 : 130,
-              itemBuilder: (c, i) => FilaDirecto(mesaId: mesas[i].id),
-            ),
-          ),
+          (enCurso.isEmpty
+              ? const Vacio(
+                  icono: Icons.sensors_off_outlined,
+                  texto: 'Ninguna tanda en curso.\nAbre una desde Tandas o Puntuaciones.',
+                )
+              : Ancho(
+                  max: 1100,
+                  child: ListView.separated(
+                    padding: EdgeInsets.all(k ? 10 : 14),
+                    itemCount: enCurso.length,
+                    separatorBuilder: (_, _) => SizedBox(height: k ? 8 : 12),
+                    itemBuilder: (c, i) => _TarjetaTandaDirecto(tanda: enCurso[i]),
+                  ),
+                )),
     );
   }
 }
 
-class FilaDirecto extends ConsumerWidget {
-  const FilaDirecto({super.key, required this.mesaId});
-  final int mesaId;
+class _TarjetaTandaDirecto extends ConsumerWidget {
+  const _TarjetaTandaDirecto({required this.tanda});
+  final Tanda tanda;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mesa = ref.watch(mesaPorIdProvider)[mesaId];
-    if (mesa == null) return const SizedBox.shrink();
-    final tandas = ref.watch(tandasDeMesaProvider(mesaId));
-    final cats = ref.watch(catadoresDeMesaProvider(mesaId)).where((c) => c.presente).toList();
-    final actual =
-        tandas.where((t) => t.estado == 'abierta').firstOrNull ??
-        tandas.where((t) => t.estado == 'pendiente').firstOrNull;
+    final mesa = ref.watch(mesaPorIdProvider)[tanda.mesaId];
+    final cats = tanda.mesaId == null
+        ? const <Catador>[]
+        : ref.watch(catadoresDeMesaProvider(tanda.mesaId!)).where((c) => c.presente).toList();
+    final tms = ref.watch(muestrasDeTandaProvider(tanda.id));
     final idx = ref.watch(puntuacionIdxProvider);
     final muestras = ref.watch(muestraPorIdProvider);
+    final catsIdx = ref.watch(categoriasProvider);
+    final catNombre = {for (final c in catsIdx) c.id: c.nombre};
     final k = esCompacto(context);
-    final cs = Theme.of(context).colorScheme;
 
-    var completadas = 0, total = 0, incid = 0;
-    String? activa;
-    final puntos = <String?>[]; // estado de la nota de cada catador en la muestra activa
-    if (actual != null) {
-      final tms = ref.watch(muestrasDeTandaProvider(actual.id));
-      total = tms.length;
-      completadas = tms.where((x) => x.estado == 'completada').length;
-      incid = tms.where((x) => x.conIncidencia).length;
-      final a = tms.where((x) => x.estado == 'activa').firstOrNull;
-      if (a != null) {
-        activa = muestras[a.muestraId]?.codigo;
-        for (final c in cats) {
-          puntos.add(idx['${a.muestraId}|${c.id}']?.estado);
-        }
+    final hechas = tms.where((x) => x.estado == 'completada').length;
+    final incid = tms.where((x) => x.conIncidencia).length;
+    final activa = tms.where((x) => x.estado == 'activa').firstOrNull;
+    final muestra = activa == null ? null : muestras[activa.muestraId];
+    final puntos = <String?>[];
+    if (activa != null) {
+      for (final c in cats) {
+        puntos.add(idx['${activa.muestraId}|${c.id}']?.estado);
       }
     }
-    final estado = estadoMesa(tandas);
-    final colorMesa = switch (estado) {
-      'catando' => Paleta.amarillo,
-      'finalizada' => Paleta.lila,
-      _ => Paleta.azul,
-    };
     final enviadas = puntos.where((p) => p != null).length;
+    final pct = tms.isEmpty ? 0 : (hechas / tms.length * 100).round();
 
-    return Card(
+    return Material(
+      color: Virtus.superficie,
+      borderRadius: BorderRadius.circular(Virtus.radio),
       child: InkWell(
-        onTap: actual == null ? () => context.go('/mesas/$mesaId') : () => context.go('/puntuar/${actual.id}'),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: k ? 12 : 18, vertical: k ? 10 : 14),
+        borderRadius: BorderRadius.circular(Virtus.radio),
+        onTap: () => context.go('/puntuar/${tanda.id}'),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: k ? 12 : 16, vertical: k ? 12 : 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Virtus.radio),
+            border: Border.all(color: Virtus.borde),
+          ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: k ? 26 : 34,
-                backgroundColor: Color.alphaBlend(colorMesa.withValues(alpha: 0.22), Colors.white),
-                child: Text(
-                  '${mesa.numero}',
-                  style: TextStyle(fontSize: k ? 22 : 28, fontWeight: FontWeight.w900, color: cs.onSurface),
+              Container(
+                width: k ? 56 : 64,
+                padding: EdgeInsets.symmetric(vertical: k ? 8 : 10),
+                decoration: BoxDecoration(color: Virtus.marino, borderRadius: BorderRadius.circular(Virtus.radioSm)),
+                child: Column(
+                  children: [
+                    Text('Mesa', style: VirtusTexto.tenue(size: 10, color: Colors.white70)),
+                    Text(
+                      '${mesa?.numero ?? '–'}',
+                      style: VirtusTexto.importante(size: k ? 22 : 26, color: Colors.white),
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(width: k ? 12 : 18),
+              SizedBox(width: k ? 12 : 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Row(
                       children: [
                         Expanded(
                           child: Text(
-                            mesa.nombre,
+                            tanda.nombre,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: k ? 17 : 22, fontWeight: FontWeight.w900, color: cs.onSurface),
+                            style: VirtusTexto.importante(size: k ? 18 : 22),
                           ),
                         ),
-                        EtiquetaEstado(estadosMesa[estado]!),
+                        EtiquetaEstado(infoTanda('abierta')),
                         if (incid > 0)
                           Padding(
                             padding: const EdgeInsets.only(left: 6),
-                            child: Icon(Icons.warning_amber_rounded, color: Paleta.rojo, size: k ? 20 : 24),
+                            child: Icon(Icons.warning_amber_rounded, color: Virtus.error, size: k ? 20 : 22),
                           ),
                       ],
                     ),
+                    Text(
+                      [
+                        mesa?.nombre,
+                        if (tanda.categoriaId != null) catNombre[tanda.categoriaId],
+                      ].whereType<String>().join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: VirtusTexto.tenue(size: k ? 12 : 13),
+                    ),
                     SizedBox(height: k ? 4 : 6),
                     Text(
-                      actual == null ? 'Sin tanda en curso' : actual.nombre,
-                      maxLines: 1,
+                      muestra == null
+                          ? 'Sin muestra activa · $hechas/${tms.length}'
+                          : 'Activa ${muestra.codigo}'
+                                '${muestra.codigoTexto != null && muestra.codigoTexto != muestra.codigo ? ' · ${muestra.codigoTexto}' : ''}'
+                                ' · $enviadas/${cats.length} notas',
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: k ? 15 : 18,
-                        fontWeight: FontWeight.w800,
-                        color: actual == null ? cs.onSurfaceVariant : cs.onSurface,
-                      ),
-                    ),
-                    SizedBox(height: k ? 2 : 4),
-                    Text(
-                      actual == null
-                          ? estadosMesa[estado]!.$1
-                          : activa == null
-                          ? '$completadas/$total muestras · sin muestra activa'
-                          : 'Activa $activa · $completadas/$total · $enviadas/${cats.length} notas',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: k ? 14 : 17,
-                        fontWeight: FontWeight.w800,
-                        color: activa != null ? Paleta.azulOscuro : cs.onSurfaceVariant,
+                      style: VirtusTexto.importante(
+                        size: k ? 15 : 17,
+                        color: muestra != null ? Virtus.accion : Virtus.textoSecundario,
                       ),
                     ),
                     if (puntos.isNotEmpty) ...[
@@ -195,31 +203,42 @@ class FilaDirecto extends ConsumerWidget {
                         children: [
                           for (final p in puntos)
                             Container(
-                              width: k ? 14 : 18,
-                              height: k ? 14 : 18,
+                              width: k ? 14 : 16,
+                              height: k ? 14 : 16,
                               margin: const EdgeInsets.only(right: 5),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: p == null ? Colors.transparent : (estadosNota[p]?.$3 ?? Colors.blue).shade400,
-                                border: Border.all(color: cs.outline, width: 1.2),
+                                border: Border.all(color: Virtus.borde, width: 1.2),
                               ),
                             ),
                         ],
                       ),
                     ],
-                    if (total > 0) ...[
+                    if (tms.isNotEmpty) ...[
                       SizedBox(height: k ? 6 : 8),
-                      LinearProgressIndicator(
-                        value: completadas / total,
-                        minHeight: k ? 7 : 10,
-                        color: colorMesa,
-                        backgroundColor: colorMesa.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: hechas / tms.length,
+                                minHeight: k ? 7 : 9,
+                                color: Virtus.advertencia,
+                                backgroundColor: Virtus.advertenciaSuave,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('$hechas / ${tms.length} ($pct%)', style: VirtusTexto.tenue(size: k ? 11 : 12)),
+                        ],
                       ),
                     ],
                   ],
                 ),
               ),
+              Icon(Icons.chevron_right, color: Virtus.textoTenue, size: k ? 22 : 26),
             ],
           ),
         ),

@@ -393,4 +393,16 @@ class Repo {
 
   Future<void> fijarMedalla(int muestraId, String? medalla, double media) =>
       c.rpc('fijar_medalla', params: {'p_muestra': muestraId, 'p_medalla': medalla, 'p_media': media});
+
+  /// Vacía concurso/catadores/notas en este servidor (RPC `demo_borrar_todo`).
+  Future<Json> demoBorrarTodo() async {
+    final r = await c.rpc('demo_borrar_todo');
+    return Map<String, dynamic>.from(r as Map);
+  }
+
+  /// Crea el día DEMO en CLOUD (5 mesas, 25 catadores, 6×22 muestras).
+  Future<Json> demoCrearDiaCompleto() async {
+    final r = await c.rpc('demo_crear_dia_completo');
+    return Map<String, dynamic>.from(r as Map);
+  }
 }

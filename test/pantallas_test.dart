@@ -153,8 +153,7 @@ Future<void> montar(WidgetTester tester, Widget pantalla, Size size) async {
             }),
           ],
         ),
-        // Tabletas: 13 emparejadas + 2 de reserva.
-        // (filasProvider ya cubre 'dispositivos' vía datos si se añade)
+        estadoConexionProvider.overrideWith((ref) async => (true, 'OK (prueba)')),
       ],
       child: MaterialApp(
         theme: tema(compacto: size.shortestSide < 600),
@@ -210,8 +209,10 @@ void main() {
     expect(find.text('Guardar'), findsNothing);
   });
 
-  testWidgets('inicio: las 9 baldosas caben sin scroll en el Redmi', (tester) async {
+  testWidgets('inicio: gestión rápida y conexión visibles en el Redmi', (tester) async {
     await montar(tester, const InicioScreen(), const Size(393, 873));
+    expect(find.text('Conectado · CLOUD'), findsWidgets);
+    expect(find.text('Gestión rápida'), findsOneWidget);
     for (final t in [
       'En directo',
       'Mesas',
@@ -223,10 +224,17 @@ void main() {
       'Medallero Provisional',
       'Auditoría',
     ]) {
-      expect(find.text(t).hitTestable(), findsOneWidget, reason: t);
+      final finder = find.text(t);
+      await tester.ensureVisible(finder);
+      await tester.pump();
+      expect(finder.hitTestable(), findsOneWidget, reason: t);
     }
-    expect(find.text('Catando'), findsOneWidget);
+    expect(find.text('Mesas catando'), findsOneWidget);
     expect(find.text('Alertas'), findsOneWidget);
+    expect(find.text('Progreso del día'), findsOneWidget);
+    expect(find.text('Datos DEMO'), findsOneWidget);
+    expect(find.text('Crear DEMO'), findsOneWidget);
+    expect(find.text('Borrar todo'), findsOneWidget);
   });
 
   testWidgets('incidencias: lista la muestra con incidencia abierta', (tester) async {
