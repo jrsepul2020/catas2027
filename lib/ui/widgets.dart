@@ -18,8 +18,11 @@ void aviso(BuildContext context, String msg, {bool error = false}) {
   m?.hideCurrentSnackBar();
   m?.showSnackBar(
     SnackBar(
-      content: Text(msg, style: const TextStyle(fontSize: 17)),
-      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+      content: Text(
+        msg,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
+      ),
+      backgroundColor: error ? Virtus.error : Virtus.marino,
       duration: Duration(seconds: error ? 5 : 2),
     ),
   );
@@ -58,7 +61,7 @@ class _BotonRefrescarState extends ConsumerState<BotonRefrescar> {
               height: 22,
               child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
             )
-          : const Icon(Icons.refresh),
+          : const Icon(Icons.refresh_outlined),
     );
   }
 }
@@ -142,22 +145,32 @@ Future<bool> ejecutarConAvisos(
   }
 }
 
-Future<bool> confirmar(BuildContext context, String titulo, {String? texto, String si = 'Sí'}) async {
+Future<bool> confirmar(
+  BuildContext context,
+  String titulo, {
+  String? texto,
+  String si = 'Sí',
+  bool destructivo = false,
+}) async {
   final r = await showDialog<bool>(
     context: context,
     builder: (c) => AlertDialog(
       title: Text(titulo),
-      content: texto == null ? null : Text(texto, style: const TextStyle(fontSize: 18)),
+      content: texto == null ? null : Text(texto, style: const TextStyle(fontSize: 15, height: 1.4)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-        FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(si)),
+        FilledButton(
+          style: destructivo ? FilledButton.styleFrom(backgroundColor: Virtus.error) : null,
+          onPressed: () => Navigator.pop(c, true),
+          child: Text(si),
+        ),
       ],
     ),
   );
   return r ?? false;
 }
 
-/// Baldosa gigante para el panel principal.
+/// Baldosa del panel principal: superficie blanca, acento solo en el icono.
 class Baldosa extends StatelessWidget {
   const Baldosa({
     super.key,
@@ -178,34 +191,42 @@ class Baldosa extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final c = color ?? cs.primary;
+    final c = color ?? Virtus.accion;
     final k = esCompacto(context);
     return Card(
-      color: Color.alphaBlend(c.withValues(alpha: 0.13), Colors.white),
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(Virtus.radio),
         child: Padding(
-          padding: EdgeInsets.all(k ? 10 : 16),
+          padding: EdgeInsets.all(k ? 10 : 14),
           child: Stack(
             children: [
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icono, size: k ? 30 : 52, color: c),
+                  Container(
+                    width: k ? 36 : 44,
+                    height: k ? 36 : 44,
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(Virtus.radioSm),
+                    ),
+                    child: Icon(icono, size: k ? 20 : 24, color: c),
+                  ),
                   const Spacer(),
                   Text(
                     texto,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: k ? 16 : 22, fontWeight: FontWeight.w800, color: cs.onSurface),
+                    style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w700, color: Virtus.texto),
                   ),
                   if (sub != null)
                     Text(
                       sub!,
                       maxLines: k ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: k ? 11.5 : 15, height: 1.15, color: cs.onSurfaceVariant),
+                      style: TextStyle(fontSize: k ? 11 : 13, height: 1.2, color: cs.onSurfaceVariant),
                     ),
                 ],
               ),
@@ -214,12 +235,12 @@ class Baldosa extends StatelessWidget {
                   right: 0,
                   top: 0,
                   child: Badge(
-                    largeSize: k ? 24 : 34,
-                    backgroundColor: cs.error,
-                    padding: EdgeInsets.symmetric(horizontal: k ? 7 : 10),
+                    largeSize: k ? 22 : 28,
+                    backgroundColor: Virtus.error,
+                    padding: EdgeInsets.symmetric(horizontal: k ? 6 : 8),
                     label: Text(
                       '$badge',
-                      style: TextStyle(fontSize: k ? 14 : 18, fontWeight: FontWeight.w800),
+                      style: TextStyle(fontSize: k ? 12 : 14, fontWeight: FontWeight.w700, color: Colors.white),
                     ),
                   ),
                 ),
@@ -239,7 +260,7 @@ class ChipEntorno extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final e = ref.watch(entornoProvider);
     final cloud = e == Entorno.cloud;
-    final color = cloud ? Colors.blue.shade700 : Colors.deepPurple.shade500;
+    final color = cloud ? Virtus.accion : Virtus.marino;
     Future<void> cambiar() async {
       final ok = await confirmar(
         context,
@@ -259,7 +280,6 @@ class ChipEntorno extends ConsumerWidget {
     }
 
     if (esCompacto(context)) {
-      // En teléfono solo el icono coloreado: deja sitio al título.
       return Padding(
         padding: const EdgeInsets.only(right: 6),
         child: Tooltip(
@@ -269,9 +289,9 @@ class ChipEntorno extends ConsumerWidget {
             onTap: cambiar,
             onLongPress: toggleDiagnostico,
             child: CircleAvatar(
-              radius: 17,
-              backgroundColor: color,
-              child: Icon(cloud ? Icons.cloud : Icons.dns, color: Colors.white, size: 19),
+              radius: 16,
+              backgroundColor: Colors.white.withValues(alpha: 0.16),
+              child: Icon(cloud ? Icons.cloud_outlined : Icons.dns_outlined, color: Colors.white, size: 18),
             ),
           ),
         ),
@@ -282,21 +302,30 @@ class ChipEntorno extends ConsumerWidget {
       child: GestureDetector(
         onLongPress: toggleDiagnostico,
         child: Material(
-          color: color,
-          shape: const StadiumBorder(),
+          color: Colors.white.withValues(alpha: 0.14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Virtus.radioSm),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
+          ),
           child: InkWell(
-            customBorder: const StadiumBorder(),
+            borderRadius: BorderRadius.circular(Virtus.radioSm),
             onTap: cambiar,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(cloud ? Icons.cloud : Icons.dns, color: Colors.white, size: 20),
+                  Icon(cloud ? Icons.cloud_outlined : Icons.dns_outlined, color: Colors.white, size: 18),
                   const SizedBox(width: 6),
                   Text(
                     e.corto,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                  Container(
+                    width: 7,
+                    height: 7,
+                    margin: const EdgeInsets.only(left: 8),
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                   ),
                 ],
               ),
@@ -318,17 +347,17 @@ class BotonDirecto extends StatelessWidget {
     icon: Stack(
       clipBehavior: Clip.none,
       children: [
-        Icon(Icons.live_tv, color: Theme.of(context).colorScheme.secondary),
+        const Icon(Icons.live_tv_outlined, color: Colors.white),
         Positioned(
           right: -2,
           top: -2,
           child: Container(
-            width: 9,
-            height: 9,
+            width: 8,
+            height: 8,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondary,
+              color: Virtus.error,
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1.5),
+              border: Border.all(color: Virtus.marino, width: 1.5),
             ),
           ),
         ),
@@ -396,11 +425,11 @@ class ChipDia extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.calendar_month, size: k ? 18 : 22, color: Colors.white),
+                Icon(Icons.calendar_today_outlined, size: k ? 16 : 18, color: Colors.white),
                 SizedBox(width: k ? 4 : 6),
                 Text(
                   etiqueta,
-                  style: TextStyle(fontSize: k ? 13 : 16, fontWeight: FontWeight.w800, color: Colors.white),
+                  style: TextStyle(fontSize: k ? 12 : 14, fontWeight: FontWeight.w700, color: Colors.white),
                 ),
               ],
             ),
@@ -424,12 +453,12 @@ class Vacio extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 64, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 16),
+          Icon(icono, size: 48, color: Virtus.textoSecundario),
+          const SizedBox(height: 12),
           Text(
             texto,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 17, color: Theme.of(context).colorScheme.onSurface),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Virtus.texto),
           ),
           if (accion != null) ...[const SizedBox(height: 24), accion!],
         ],
@@ -461,21 +490,24 @@ class RecuadroProblema extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: Card(
-            color: Paleta.rojoPastel,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Virtus.radio),
+                border: const Border(left: BorderSide(color: Virtus.error, width: 4)),
+              ),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
-                      Icon(icono, color: Paleta.rojoOscuro, size: 28),
+                      Icon(icono, color: Virtus.error, size: 22),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           que,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Paleta.rojoOscuro),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Virtus.texto),
                         ),
                       ),
                     ],
@@ -484,23 +516,23 @@ class RecuadroProblema extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text(
                       'Error',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),
                     SelectableText(
                       error!,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Paleta.texto),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Virtus.texto),
                     ),
                   ],
                   const SizedBox(height: 12),
                   Text(
                     'Qué hacer',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     queHacer,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Paleta.texto),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Virtus.texto),
                   ),
                 ],
               ),
@@ -557,7 +589,7 @@ class PanelDiagnostico extends ConsumerWidget {
         '${e.key}:${e.value}${errores.containsKey(e.key) ? "!" : (avisos.containsKey(e.key) ? "~" : "")}',
     ].join(' · ');
     return Material(
-      color: Paleta.amarilloPastel,
+      color: Virtus.neutroSuave,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -566,7 +598,7 @@ class PanelDiagnostico extends ConsumerWidget {
             texto,
             maxLines: 4,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Paleta.amarilloOscuro),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Virtus.textoSecundario),
           ),
         ),
       ),
@@ -694,36 +726,36 @@ class RejillaLlena extends StatelessWidget {
 typedef InfoEstado = (String, IconData, MaterialColor);
 
 /// Estado de la mesa, derivado de sus tandas.
-const estadosMesa = <String, InfoEstado>{
-  'preparada': ('Preparada', Icons.event_seat, Colors.blue),
-  'catando': ('Catando', Icons.wine_bar, Colors.amber),
-  'finalizada': ('Finalizada', Icons.check_circle, Colors.deepPurple),
+final estadosMesa = <String, InfoEstado>{
+  'preparada': ('Preparada', Icons.event_seat_outlined, Virtus.mcAccion),
+  'catando': ('Catando', Icons.play_circle_outline, Virtus.mcAdvertencia),
+  'finalizada': ('Finalizada', Icons.check_circle_outline, Virtus.mcExito),
 };
 
 /// tandas.estado
-const estadosTanda = <String, InfoEstado>{
-  'pendiente': ('Pendiente', Icons.schedule, Colors.blue),
-  'abierta': ('Abierta', Icons.play_circle_fill, Colors.amber),
-  'cerrada': ('Cerrada', Icons.lock, Colors.deepPurple),
+final estadosTanda = <String, InfoEstado>{
+  'pendiente': ('Pendiente', Icons.schedule_outlined, Virtus.mcAccion),
+  'abierta': ('Abierta', Icons.play_circle_outline, Virtus.mcAdvertencia),
+  'cerrada': ('Cerrada', Icons.lock_outline, Virtus.mcExito),
 };
-InfoEstado infoTanda(String e) => estadosTanda[e] ?? (e, Icons.help_outline, Colors.grey);
+InfoEstado infoTanda(String e) => estadosTanda[e] ?? (e, Icons.help_outline, Virtus.mcNeutro);
 
 /// tanda_muestras.estado
-const estadosTM = <String, InfoEstado>{
-  'pendiente': ('Pendiente', Icons.schedule, Colors.blue),
-  'activa': ('Activa', Icons.play_circle_fill, Colors.amber),
-  'en_curso': ('En curso', Icons.play_circle_fill, Colors.amber),
-  'completada': ('Completada', Icons.check_circle, Colors.deepPurple),
-  'incidencia': ('Incidencia', Icons.warning_amber_rounded, Colors.red),
-  'pospuesta': ('Pospuesta', Icons.update, Colors.deepPurple),
+final estadosTM = <String, InfoEstado>{
+  'pendiente': ('Pendiente', Icons.schedule_outlined, Virtus.mcAccion),
+  'activa': ('Activa', Icons.play_circle_outline, Virtus.mcAdvertencia),
+  'en_curso': ('En curso', Icons.play_circle_outline, Virtus.mcAdvertencia),
+  'completada': ('Completada', Icons.check_circle_outline, Virtus.mcExito),
+  'incidencia': ('Incidencia', Icons.warning_amber_outlined, Virtus.mcError),
+  'pospuesta': ('Pospuesta', Icons.update_outlined, Virtus.mcNeutro),
 };
-InfoEstado infoTM(String e) => estadosTM[e] ?? (e, Icons.help_outline, Colors.grey);
+InfoEstado infoTM(String e) => estadosTM[e] ?? (e, Icons.help_outline, Virtus.mcNeutro);
 
 /// puntuaciones.estado
-const estadosNota = <String, InfoEstado>{
-  'borrador': ('Borrador', Icons.edit, Colors.grey),
-  'enviada': ('Enviada', Icons.send, Colors.blue),
-  'aprobada': ('Aprobada', Icons.verified, Colors.deepPurple),
+final estadosNota = <String, InfoEstado>{
+  'borrador': ('Borrador', Icons.edit_outlined, Virtus.mcNeutro),
+  'enviada': ('Enviada', Icons.send_outlined, Virtus.mcAccion),
+  'aprobada': ('Aprobada', Icons.verified_outlined, Virtus.mcExito),
 };
 
 const medallas = {
@@ -735,30 +767,30 @@ const medallas = {
 
 /// Motivos rápidos de incidencia (se guardan como texto en incidencia_motivo).
 const motivosIncidencia = <(String, IconData)>[
-  ('Corcho / TCA', Icons.wine_bar),
-  ('Temperatura incorrecta', Icons.thermostat),
-  ('Muestra defectuosa', Icons.report_problem),
-  ('Botella rota', Icons.broken_image),
-  ('Error de servicio', Icons.local_drink),
-  ('Copa equivocada', Icons.swap_horiz),
-  ('Catador ausente', Icons.person_off),
-  ('Abierta por error', Icons.undo),
+  ('Corcho / TCA', Icons.wine_bar_outlined),
+  ('Temperatura incorrecta', Icons.thermostat_outlined),
+  ('Muestra defectuosa', Icons.report_problem_outlined),
+  ('Botella rota', Icons.broken_image_outlined),
+  ('Error de servicio', Icons.local_drink_outlined),
+  ('Copa equivocada', Icons.swap_horiz_outlined),
+  ('Catador ausente', Icons.person_off_outlined),
+  ('Abierta por error', Icons.undo_outlined),
   ('Otro motivo', Icons.more_horiz),
 ];
 
 /// Acciones del registro de cambios -> (texto, icono)
 const accionesCambio = <String, (String, IconData)>{
-  'incidencia': ('Incidencia', Icons.warning_amber_rounded),
-  'incidencia_resuelta': ('Incidencia cerrada', Icons.check_circle),
-  'recatar': ('Recatar', Icons.replay),
-  'pasar_al_final': ('Pasada al final', Icons.low_priority),
-  'quitar_de_tanda': ('Quitada de la tanda', Icons.remove_circle),
-  'cambio_puesto': ('Cambio de puesto', Icons.swap_horiz),
-  'cambio_orden_tandas': ('Orden de tandas', Icons.swap_vert),
-  'cambio_orden_muestras': ('Orden de muestras', Icons.swap_vert),
-  'aprobar_muestra': ('Muestra aprobada', Icons.verified),
-  'catador_ausente': ('Catador ausente', Icons.person_off),
-  'catador_presente': ('Catador presente', Icons.person),
+  'incidencia': ('Incidencia', Icons.warning_amber_outlined),
+  'incidencia_resuelta': ('Incidencia cerrada', Icons.check_circle_outline),
+  'recatar': ('Recatar', Icons.replay_outlined),
+  'pasar_al_final': ('Pasada al final', Icons.low_priority_outlined),
+  'quitar_de_tanda': ('Quitada de la tanda', Icons.remove_circle_outline),
+  'cambio_puesto': ('Cambio de puesto', Icons.swap_horiz_outlined),
+  'cambio_orden_tandas': ('Orden de tandas', Icons.swap_vert_outlined),
+  'cambio_orden_muestras': ('Orden de muestras', Icons.swap_vert_outlined),
+  'aprobar_muestra': ('Muestra aprobada', Icons.verified_outlined),
+  'catador_ausente': ('Catador ausente', Icons.person_off_outlined),
+  'catador_presente': ('Catador presente', Icons.person_outline),
 };
 
 class EtiquetaEstado extends StatelessWidget {
@@ -769,23 +801,23 @@ class EtiquetaEstado extends StatelessWidget {
     final (t, i, c) = info;
     final k = esCompacto(context);
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: k ? 7 : 10, vertical: k ? 3 : 6),
+      padding: EdgeInsets.symmetric(horizontal: k ? 8 : 10, vertical: k ? 3 : 5),
       decoration: BoxDecoration(
         color: c.shade50,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(Virtus.radioSm),
         border: Border.all(color: c.shade200),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(i, size: k ? 15 : 20, color: c.shade700),
-          SizedBox(width: k ? 3 : 6),
+          Icon(i, size: k ? 14 : 16, color: c.shade700),
+          SizedBox(width: k ? 4 : 5),
           Flexible(
             child: Text(
               t,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontWeight: FontWeight.w700, color: c.shade900, fontSize: k ? 12 : 15),
+              style: TextStyle(fontWeight: FontWeight.w600, color: c.shade900, fontSize: k ? 11 : 12),
             ),
           ),
         ],
@@ -852,20 +884,31 @@ class AccionHoja extends StatelessWidget {
   Widget build(BuildContext context) {
     final k = esCompacto(context);
     final cs = Theme.of(context).colorScheme;
-    final c = color ?? cs.primary;
+    final c = color ?? Virtus.accion;
     return ListTile(
-      contentPadding: EdgeInsets.symmetric(horizontal: k ? 20 : 28, vertical: k ? 10 : 14),
-      minVerticalPadding: k ? 12 : 16,
-      leading: icono == null ? null : Icon(icono, size: k ? 34 : 40, color: c),
+      contentPadding: EdgeInsets.symmetric(horizontal: k ? 16 : 20, vertical: k ? 6 : 8),
+      minVerticalPadding: k ? 10 : 12,
+      minTileHeight: 48,
+      leading: icono == null
+          ? null
+          : Container(
+              width: k ? 40 : 44,
+              height: k ? 40 : 44,
+              decoration: BoxDecoration(
+                color: c.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(Virtus.radioSm),
+              ),
+              child: Icon(icono, size: k ? 22 : 24, color: c),
+            ),
       title: Text(
         titulo,
-        style: TextStyle(fontSize: k ? 18 : 21, fontWeight: FontWeight.w800, color: cs.onSurface),
+        style: TextStyle(fontSize: k ? 16 : 17, fontWeight: FontWeight.w700, color: Virtus.texto),
       ),
       subtitle: subtitulo == null
           ? null
           : Text(
               subtitulo!,
-              style: TextStyle(fontSize: k ? 14 : 16, color: cs.onSurfaceVariant),
+              style: TextStyle(fontSize: k ? 13 : 14, color: cs.onSurfaceVariant),
             ),
       onTap: onTap,
     );

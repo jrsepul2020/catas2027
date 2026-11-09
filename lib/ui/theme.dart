@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Sistema de diseño Virtus Gestión 2027 (FASE 1).
+/// Sistema de diseño CATARIS Gestión 2027 (FASE 1).
 ///
 /// Tokens semánticos + alias históricos de [Paleta] (las pantallas aún los usan).
 /// Los pastel se han suavizado: dejan de ser fondos decorativos intensos.
@@ -30,6 +30,30 @@ abstract final class Virtus {
   static const radio = 12.0;
   static const radioSm = 8.0;
   static const elevacion = 0.5;
+
+  /// MaterialColor semántico (compat. con chips/estados que usan shade50…900).
+  static MaterialColor material(Color base) {
+    Color mezclar(double t) => Color.lerp(Colors.white, base, t)!;
+    Color oscurecer(double t) => Color.lerp(base, const Color(0xFF0F172A), t)!;
+    return MaterialColor(base.toARGB32(), {
+      50: mezclar(0.08),
+      100: mezclar(0.14),
+      200: mezclar(0.28),
+      300: mezclar(0.42),
+      400: mezclar(0.58),
+      500: base,
+      600: oscurecer(0.12),
+      700: oscurecer(0.22),
+      800: oscurecer(0.34),
+      900: oscurecer(0.48),
+    });
+  }
+
+  static final mcAccion = material(accion);
+  static final mcAdvertencia = material(advertencia);
+  static final mcExito = material(exito);
+  static final mcError = material(error);
+  static final mcNeutro = material(textoSecundario);
 }
 
 /// Alias de compatibilidad con el código existente.

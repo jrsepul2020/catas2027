@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/backend.dart';
 import '../../core/providers.dart';
+import '../marca.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -82,14 +83,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(Icons.wine_bar, size: 96, color: cs.primary),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Virtus Catas 2027',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: cs.onSurface),
-                    ),
-                    const SizedBox(height: 24),
+                    const LogoCataris(tamano: 112),
+                    const SizedBox(height: 28),
                     SegmentedButton<Entorno>(
                       segments: const [
                         ButtonSegment(value: Entorno.local, icon: Icon(Icons.dns), label: Text('LOCAL')),

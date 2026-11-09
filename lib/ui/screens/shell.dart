@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/actualizacion.dart';
 import '../../core/providers.dart';
+import '../marca.dart';
 import '../widgets.dart';
 
 class _Dest {
@@ -15,15 +16,15 @@ class _Dest {
 }
 
 const _destinos = [
-  _Dest('/', Icons.home, 'Inicio'),
-  _Dest('/directo', Icons.live_tv, 'Directo'),
-  _Dest('/mesas', Icons.table_restaurant, 'Mesas'),
-  _Dest('/puntuar', Icons.grid_on, 'Puntuac.'),
-  _Dest('/incidencias', Icons.warning_amber_rounded, 'Incidencias'),
-  _Dest('/medallas', Icons.military_tech, 'Medallas', movil: false),
-  _Dest('/tandas', Icons.format_list_numbered, 'Tandas', movil: false),
-  _Dest('/catadores', Icons.groups, 'Catadores', movil: false),
-  _Dest('/muestras', Icons.wine_bar, 'Muestras', movil: false),
+  _Dest('/', Icons.home_outlined, 'Inicio'),
+  _Dest('/directo', Icons.live_tv_outlined, 'Directo'),
+  _Dest('/mesas', Icons.table_restaurant_outlined, 'Mesas'),
+  _Dest('/puntuar', Icons.grid_view_outlined, 'Puntuac.'),
+  _Dest('/incidencias', Icons.warning_amber_outlined, 'Incidencias'),
+  _Dest('/medallas', Icons.military_tech_outlined, 'Medallas', movil: false),
+  _Dest('/tandas', Icons.format_list_numbered_outlined, 'Tandas', movil: false),
+  _Dest('/catadores', Icons.groups_outlined, 'Catadores', movil: false),
+  _Dest('/muestras', Icons.wine_bar_outlined, 'Muestras', movil: false),
 ];
 
 /// Estructura adaptativa: barra inferior en móvil, rail lateral en ordenador.
@@ -59,7 +60,7 @@ class Shell extends ConsumerWidget {
               onDestinationSelected: (i) => context.go(lista[i].ruta),
               leading: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Icon(Icons.wine_bar, size: 40, color: Colors.white),
+                child: IconoCataris(tamano: 40, fondoOscuro: true),
               ),
               trailing: Expanded(
                 child: Align(
@@ -73,19 +74,19 @@ class Shell extends ConsumerWidget {
                           tooltip: 'Sincronizar',
                           color: Colors.white,
                           onPressed: () => context.push('/sync'),
-                          icon: const Icon(Icons.sync),
+                          icon: const Icon(Icons.sync_outlined),
                         ),
                         IconButton(
                           tooltip: 'Ajustes',
                           color: Colors.white,
                           onPressed: () => context.push('/configuracion'),
-                          icon: const Icon(Icons.settings),
+                          icon: const Icon(Icons.settings_outlined),
                         ),
                         IconButton(
                           tooltip: 'Cerrar sesión',
                           color: Colors.white,
                           onPressed: () => cerrarSesion(context, ref),
-                          icon: const Icon(Icons.logout),
+                          icon: const Icon(Icons.logout_outlined),
                         ),
                       ],
                     ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
+import '../marca.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -31,67 +32,67 @@ class InicioScreen extends ConsumerWidget {
 
     final tiles = [
       Baldosa(
-        icono: Icons.live_tv,
+        icono: Icons.live_tv_outlined,
         texto: 'En directo',
         sub: '$catando de ${mesas.length} mesas catando',
-        color: Paleta.rojo,
+        color: Virtus.error,
         onTap: () => context.go('/directo'),
       ),
       Baldosa(
-        icono: Icons.table_restaurant,
+        icono: Icons.table_restaurant_outlined,
         texto: 'Mesas',
         sub: '${mesas.length} mesas',
-        color: Paleta.azul,
+        color: Virtus.accion,
         onTap: () => context.go('/mesas'),
       ),
       Baldosa(
-        icono: Icons.grid_on,
+        icono: Icons.grid_view_outlined,
         texto: 'Puntuaciones',
         sub: '${punt.length} notas',
-        color: Paleta.amarillo,
+        color: Virtus.advertencia,
         onTap: () => context.go('/puntuar'),
       ),
       Baldosa(
-        icono: Icons.format_list_numbered,
+        icono: Icons.format_list_numbered_outlined,
         texto: 'Tandas',
         sub: '$abiertas abiertas · $cerradas cerradas',
-        color: Paleta.lila,
+        color: Virtus.exito,
         onTap: () => context.go('/tandas'),
       ),
       Baldosa(
-        icono: Icons.warning_amber_rounded,
+        icono: Icons.warning_amber_outlined,
         texto: 'Incidencias',
         sub: inc == 0 ? 'Sin abiertas' : '$inc abiertas',
-        color: Paleta.rojo,
+        color: Virtus.error,
         badge: inc,
         onTap: () => context.go('/incidencias'),
       ),
       Baldosa(
-        icono: Icons.groups,
+        icono: Icons.groups_outlined,
         texto: 'Catadores',
         sub: '$conectados/${catadores.length} tablet${ausentes > 0 ? ' · $ausentes aus.' : ''}',
-        color: Paleta.azul,
+        color: Virtus.accion,
         onTap: () => context.go('/catadores'),
       ),
       Baldosa(
-        icono: Icons.wine_bar,
+        icono: Icons.wine_bar_outlined,
         texto: 'Muestras',
         sub: '${muestras.where((m) => m.activa).length} activas',
-        color: Paleta.lila,
+        color: Virtus.marino,
         onTap: () => context.go('/muestras'),
       ),
       Baldosa(
-        icono: Icons.military_tech,
+        icono: Icons.military_tech_outlined,
         texto: 'Medallas',
         sub: 'Resultados',
-        color: Paleta.amarillo,
+        color: Virtus.advertencia,
         onTap: () => context.go('/medallas'),
       ),
       Baldosa(
-        icono: Icons.fact_check,
+        icono: Icons.fact_check_outlined,
         texto: 'Auditoría',
         sub: reservas > 0 ? 'Chequeos · $reservas reserva${reservas == 1 ? '' : 's'}' : 'Incongruencias del día',
-        color: Paleta.rojo,
+        color: Virtus.textoSecundario,
         onTap: () => context.go('/auditoria'),
       ),
       // Sincronizar: engranaje de la barra / rail (mantiene 9 baldosas sin scroll en el Redmi).
@@ -108,23 +109,29 @@ class InicioScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(concurso?.nombre ?? 'Catas 2027', maxLines: 1, overflow: TextOverflow.ellipsis),
+        leading: const Padding(padding: EdgeInsets.only(left: 12), child: IconoCataris(tamano: 32, fondoOscuro: true)),
+        leadingWidth: 48,
+        title: Text(concurso?.nombre ?? MarcaApp.nombre, maxLines: 1, overflow: TextOverflow.ellipsis),
         bottom: cargando
             ? const PreferredSize(preferredSize: Size.fromHeight(3), child: LinearProgressIndicator(minHeight: 3))
             : null,
         actions: [
           const ChipDia(),
           if (!esAncho(context)) ...[
-            IconButton(tooltip: 'Sincronizar', onPressed: () => context.push('/sync'), icon: const Icon(Icons.sync)),
+            IconButton(
+              tooltip: 'Sincronizar',
+              onPressed: () => context.push('/sync'),
+              icon: const Icon(Icons.sync_outlined),
+            ),
             IconButton(
               tooltip: 'Ajustes',
               onPressed: () => context.push('/configuracion'),
-              icon: const Icon(Icons.settings),
+              icon: const Icon(Icons.settings_outlined),
             ),
             IconButton(
               tooltip: 'Cerrar sesión',
               onPressed: () => cerrarSesion(context, ref),
-              icon: const Icon(Icons.logout),
+              icon: const Icon(Icons.logout_outlined),
             ),
           ],
           const ChipEntorno(),

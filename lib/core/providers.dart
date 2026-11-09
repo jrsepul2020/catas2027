@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -9,6 +10,17 @@ import '../data/repo.dart';
 import 'backend.dart';
 
 final prefsProvider = Provider<SharedPreferences>((_) => throw UnimplementedError());
+
+/// TEMPORAL (pruebas locales): salta la pantalla de login.
+/// En builds release (Play) siempre es false. Forzar con:
+/// `--dart-define=OMITIR_LOGIN=true|false`
+bool get kOmitirLoginTemporal {
+  const forzado = bool.fromEnvironment('OMITIR_LOGIN');
+  if (const bool.hasEnvironment('OMITIR_LOGIN')) return forzado;
+  return !kReleaseMode;
+}
+
+final omitirLoginProvider = Provider<bool>((_) => kOmitirLoginTemporal);
 
 final backendsProvider = Provider<Backends>((ref) => Backends(ref.watch(prefsProvider)));
 
@@ -118,7 +130,8 @@ final pedidoRefrescoProvider = NotifierProvider<PedidoRefresco, ({int n, Set<Str
 /// si el canal lleva ≥15 s sin evento (si Realtime va bien, no hay tráfico extra).
 final filasProvider = StreamProvider.family<List<Json>, String>((ref, tabla) async* {
   final c = await ref.watch(clienteProvider.future);
-  if (c == null || ref.watch(usuarioIdProvider) == null) {
+  final conSesion = ref.watch(usuarioIdProvider) != null;
+  if (c == null || (!conSesion && !ref.watch(omitirLoginProvider))) {
     yield const [];
     return;
   }

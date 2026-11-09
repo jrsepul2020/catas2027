@@ -1,11 +1,11 @@
 {
-    "name": "Virtus Catas 2027",
-    "short_name": "Virtus Catas",
+    "name": "CATARIS Gestión",
+    "short_name": "CATARIS",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#15365F",
     "theme_color": "#15365F",
-    "description": "Gestión del concurso de cata Virtus 2027",
+    "description": "Gestión del concurso de cata CATARIS",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

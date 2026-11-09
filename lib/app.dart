@@ -38,9 +38,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc = st.matchedLocation;
       final cli = ref.read(clienteProvider);
       final ses = ref.read(sesionProvider);
-      if (cli.isLoading || ses.isLoading) return loc == '/carga' ? null : '/carga';
+      final sinLogin = ref.read(omitirLoginProvider);
+      if (cli.isLoading || (!sinLogin && ses.isLoading)) return loc == '/carga' ? null : '/carga';
       if (cli.value == null) return loc == '/configuracion' ? null : '/configuracion';
-      if (ses.value == null) return libres.contains(loc) ? null : '/login';
+      if (!sinLogin && ses.value == null) return libres.contains(loc) ? null : '/login';
       if (loc == '/login' || loc == '/carga') return '/';
       // Varios concursos y ninguno elegido: pantalla de elección.
       final sinConcurso = ref.read(concursosCargadosProvider) && ref.read(concursoIdProvider) == null;
@@ -107,7 +108,7 @@ class VirtusCatasApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
-    title: 'Virtus Catas 2027',
+    title: 'CATARIS Gestión',
     debugShowCheckedModeBanner: false,
     // Siempre tema claro (paleta fija) y compacto en teléfono.
     theme: tema(),
