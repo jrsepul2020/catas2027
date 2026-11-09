@@ -351,7 +351,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sincronizar')),
+      appBar: AppBar(leading: botonVolver(context), title: const Text('Sincronizar')),
       body: Ancho(
         max: 760,
         child: ListView(

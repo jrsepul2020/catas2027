@@ -24,6 +24,7 @@ class AjustesScreen extends ConsumerWidget {
     final backends = ref.read(backendsProvider);
     return Scaffold(
       appBar: AppBar(
+        leading: botonVolver(context),
         title: const Text('Configuración'),
         actions: [
           PopupMenuButton<String>(

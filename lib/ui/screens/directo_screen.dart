@@ -29,14 +29,15 @@ class DirectoScreen extends ConsumerWidget {
         (mesas.isNotEmpty && tandas.isEmpty
             ? RecuadroProblema(
                 que: 'Directo sin tandas para el día seleccionado',
-                error: 'mesas=${mesas.length}, tandas filtradas=0 (mira el chip de día y el panel Diagnóstico)',
+                error: 'mesas=${mesas.length}, tandas filtradas=0 (mira el chip de día y el resumen del inicio)',
                 queHacer:
                     'Pulsa el chip del calendario y elige el día donde están las tandas (o «Todos los días»). '
-                    'Si el diagnóstico muestra tandas:0, la tabla no está llegando desde Cloud.',
+                    'Si el resumen del inicio muestra 0 tandas, la tabla no está llegando desde Cloud.',
               )
             : null);
     return Scaffold(
       appBar: AppBar(
+        leading: botonVolver(context),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

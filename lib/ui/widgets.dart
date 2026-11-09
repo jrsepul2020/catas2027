@@ -170,7 +170,7 @@ Future<bool> confirmar(
   return r ?? false;
 }
 
-/// Baldosa del panel principal: superficie blanca, acento solo en el icono.
+/// Botón de sección del menú: pastel, icono grande centrado, tipografía oscura.
 class Baldosa extends StatelessWidget {
   const Baldosa({
     super.key,
@@ -190,43 +190,56 @@ class Baldosa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final c = color ?? Virtus.accion;
+    final acento = color ?? Virtus.accion;
+    final fondo = Color.lerp(Colors.white, acento, 0.12)!;
+    final borde = Color.lerp(Colors.white, acento, 0.32)!;
     final k = esCompacto(context);
-    return Card(
+    return Material(
+      color: fondo,
+      borderRadius: BorderRadius.circular(Virtus.radio),
+      elevation: 0,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(Virtus.radio),
-        child: Padding(
-          padding: EdgeInsets.all(k ? 10 : 14),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Virtus.radio),
+            border: Border.all(color: borde, width: 1.2),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: k ? 6 : 10, vertical: k ? 6 : 8),
           child: Stack(
             children: [
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Container(
-                    width: k ? 36 : 44,
-                    height: k ? 36 : 44,
-                    decoration: BoxDecoration(
-                      color: c.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(Virtus.radioSm),
-                    ),
-                    child: Icon(icono, size: k ? 20 : 24, color: c),
-                  ),
-                  const Spacer(),
+                  Icon(icono, size: k ? 28 : 34, color: acento),
+                  SizedBox(height: k ? 4 : 6),
                   Text(
                     texto,
-                    maxLines: 1,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w700, color: Virtus.texto),
+                    style: TextStyle(
+                      fontSize: k ? 12 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: Virtus.texto,
+                      height: 1.1,
+                      letterSpacing: -0.2,
+                    ),
                   ),
                   if (sub != null)
                     Text(
                       sub!,
-                      maxLines: k ? 2 : 1,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: k ? 11 : 13, height: 1.2, color: cs.onSurfaceVariant),
+                      style: TextStyle(
+                        fontSize: k ? 10 : 11,
+                        height: 1.15,
+                        fontWeight: FontWeight.w500,
+                        color: Virtus.textoSecundario,
+                      ),
                     ),
                 ],
               ),
@@ -235,12 +248,12 @@ class Baldosa extends StatelessWidget {
                   right: 0,
                   top: 0,
                   child: Badge(
-                    largeSize: k ? 22 : 28,
+                    largeSize: k ? 18 : 22,
                     backgroundColor: Virtus.error,
-                    padding: EdgeInsets.symmetric(horizontal: k ? 6 : 8),
+                    padding: EdgeInsets.symmetric(horizontal: k ? 5 : 6),
                     label: Text(
                       '$badge',
-                      style: TextStyle(fontSize: k ? 12 : 14, fontWeight: FontWeight.w700, color: Colors.white),
+                      style: TextStyle(fontSize: k ? 11 : 12, fontWeight: FontWeight.w800, color: Colors.white),
                     ),
                   ),
                 ),
@@ -250,6 +263,153 @@ class Baldosa extends StatelessWidget {
       ),
     );
   }
+}
+
+/// KPI del dashboard: caja neutra, sin relleno de color, texto centrado.
+class TarjetaResumen extends StatelessWidget {
+  const TarjetaResumen({
+    super.key,
+    required this.titulo,
+    required this.valor,
+    this.color,
+    this.icono,
+    this.alerta = false,
+  });
+  final String titulo;
+  final String valor;
+  final Color? color;
+  final IconData? icono;
+  final bool alerta;
+
+  @override
+  Widget build(BuildContext context) {
+    final k = esCompacto(context);
+    final acento = alerta ? Virtus.error : (color ?? Virtus.textoSecundario);
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: k ? 6 : 10, vertical: k ? 6 : 8),
+      decoration: BoxDecoration(
+        color: Virtus.superficie,
+        borderRadius: BorderRadius.circular(Virtus.radioSm),
+        border: Border.all(color: alerta ? Virtus.error : Virtus.borde, width: alerta ? 1.5 : 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icono != null) Icon(icono, size: k ? 14 : 16, color: acento),
+          if (icono != null) SizedBox(height: k ? 2 : 3),
+          Text(
+            titulo,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: k ? 10 : 11, fontWeight: FontWeight.w600, color: Virtus.textoSecundario),
+          ),
+          SizedBox(height: k ? 2 : 3),
+          Text(
+            valor,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: k ? 16 : 20,
+              fontWeight: FontWeight.w800,
+              color: Virtus.texto,
+              height: 1.05,
+              letterSpacing: -0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Icono de estado de tanda_muestra: reloj (pendiente), check grande (completada), parpadeo (activa).
+class IconoEstadoTM extends StatefulWidget {
+  const IconoEstadoTM({super.key, required this.estado, this.tamano = 22});
+  final String estado;
+  final double tamano;
+
+  @override
+  State<IconoEstadoTM> createState() => _IconoEstadoTMState();
+}
+
+class _IconoEstadoTMState extends State<IconoEstadoTM> with SingleTickerProviderStateMixin {
+  AnimationController? _parpadeo;
+
+  @override
+  void initState() {
+    super.initState();
+    _asegurarAnimacion();
+  }
+
+  @override
+  void didUpdateWidget(covariant IconoEstadoTM oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.estado != widget.estado) _asegurarAnimacion();
+  }
+
+  void _asegurarAnimacion() {
+    final activa = widget.estado == 'activa' || widget.estado == 'en_curso';
+    // En tests (pumpAndSettle) un repeat infinito cuelga; no animamos ahí.
+    final enTest = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (activa && !enTest) {
+      _parpadeo ??= AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+        ..repeat(reverse: true);
+    } else if (_parpadeo != null) {
+      _parpadeo!.dispose();
+      _parpadeo = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _parpadeo?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = infoTM(widget.estado);
+    final color = info.$3.shade700;
+    late final IconData icono;
+    switch (widget.estado) {
+      case 'pendiente':
+        icono = Icons.schedule_outlined;
+      case 'activa':
+      case 'en_curso':
+        icono = Icons.play_circle_outline;
+      case 'completada':
+        icono = Icons.check_circle;
+      case 'incidencia':
+        icono = Icons.warning_amber_outlined;
+      default:
+        icono = info.$2;
+    }
+    final hijo = Icon(icono, size: widget.tamano, color: color);
+    final anim = _parpadeo;
+    if (anim == null) return hijo;
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.35, end: 1).animate(CurvedAnimation(parent: anim, curve: Curves.easeInOut)),
+      child: hijo,
+    );
+  }
+}
+
+/// Flecha de cabecera: vuelve atrás si hay historial; si no, al menú de inicio.
+Widget botonVolver(BuildContext context, {String destino = '/'}) {
+  return IconButton(
+    tooltip: 'Volver',
+    icon: const Icon(Icons.arrow_back),
+    onPressed: () {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(destino);
+      }
+    },
+  );
 }
 
 /// Indicador del entorno activo (CLOUD / LOCAL). Pulsar para cambiar.
@@ -275,7 +435,7 @@ class ChipEntorno extends ConsumerWidget {
       final nuevo = !ref.read(modoPruebasProvider);
       await ref.read(verDiagnosticoProvider.notifier).set(nuevo);
       if (context.mounted) {
-        aviso(context, nuevo ? 'Diagnóstico de datos: visible' : 'Diagnóstico de datos: oculto');
+        aviso(context, nuevo ? 'Modo pruebas: activado' : 'Modo pruebas: desactivado');
       }
     }
 
@@ -283,7 +443,7 @@ class ChipEntorno extends ConsumerWidget {
       return Padding(
         padding: const EdgeInsets.only(right: 6),
         child: Tooltip(
-          message: '${e.largo} · mantén pulsado: diagnóstico',
+          message: '${e.largo} · mantén pulsado: modo pruebas',
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: cambiar,
@@ -569,36 +729,40 @@ Widget? avisoCarga(
 }
 
 /// Contador de filas recibidas por tabla (solo modo pruebas).
-class PanelDiagnostico extends ConsumerWidget {
-  const PanelDiagnostico({super.key});
+/// Aviso rojo si hay omitir-login sin sesión: las RPCs de gestión (incidencias, etc.) fallan.
+class AvisoSesionGestion extends ConsumerWidget {
+  const AvisoSesionGestion({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!ref.watch(modoPruebasProvider)) return const SizedBox.shrink();
-    final conteos = ref.watch(conteoTablasProvider);
-    final errores = ref.watch(erroresTablasProvider);
-    final avisos = ref.watch(avisosTablasProvider);
-    final dia = ref.watch(diaIdProvider);
-    final conc = ref.watch(concursoIdProvider);
-    final tandas = ref.watch(tandasProvider).length;
-    final rtMal = avisos.isNotEmpty;
-    final texto = [
-      'Diagnóstico · concurso=$conc · día=${dia ?? "todos"} · tandasFiltro=$tandas'
-          '${rtMal ? " · Realtime fallando (datos por REST)" : ""}',
-      for (final e in conteos.entries)
-        '${e.key}:${e.value}${errores.containsKey(e.key) ? "!" : (avisos.containsKey(e.key) ? "~" : "")}',
-    ].join(' · ');
+    if (!ref.watch(omitirLoginProvider)) return const SizedBox.shrink();
+    final ses = ref.watch(sesionProvider).value;
+    if (ses != null) return const SizedBox.shrink();
     return Material(
-      color: Virtus.neutroSuave,
+      color: Virtus.errorSuave,
       child: SafeArea(
-        top: false,
+        bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Text(
-            texto,
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Virtus.textoSecundario),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.lock_outline, color: Virtus.error, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Sin sesión de gestión: las escrituras (incidencias, reiniciar…) fallarán. '
+                  'Entra una vez y guarda la contraseña.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Virtus.error),
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.push('/login'),
+                child: const Text(
+                  'Login',
+                  style: TextStyle(color: Virtus.error, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -745,7 +909,7 @@ final estadosTM = <String, InfoEstado>{
   'pendiente': ('Pendiente', Icons.schedule_outlined, Virtus.mcAccion),
   'activa': ('Activa', Icons.play_circle_outline, Virtus.mcAdvertencia),
   'en_curso': ('En curso', Icons.play_circle_outline, Virtus.mcAdvertencia),
-  'completada': ('Completada', Icons.check_circle_outline, Virtus.mcExito),
+  'completada': ('Completada', Icons.check_circle, Virtus.mcExito),
   'incidencia': ('Incidencia', Icons.warning_amber_outlined, Virtus.mcError),
   'pospuesta': ('Pospuesta', Icons.update_outlined, Virtus.mcNeutro),
 };
@@ -871,7 +1035,7 @@ class Campo extends StatelessWidget {
   );
 }
 
-/// Acción grande en hojas inferiores (modales de acciones).
+/// Acción en hojas inferiores: se ve como botón (borde + fondo pastel).
 class AccionHoja extends StatelessWidget {
   const AccionHoja({super.key, required this.titulo, required this.onTap, this.subtitulo, this.icono, this.color});
   final String titulo;
@@ -883,34 +1047,49 @@ class AccionHoja extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final k = esCompacto(context);
-    final cs = Theme.of(context).colorScheme;
     final c = color ?? Virtus.accion;
-    return ListTile(
-      contentPadding: EdgeInsets.symmetric(horizontal: k ? 16 : 20, vertical: k ? 6 : 8),
-      minVerticalPadding: k ? 10 : 12,
-      minTileHeight: 48,
-      leading: icono == null
-          ? null
-          : Container(
-              width: k ? 40 : 44,
-              height: k ? 40 : 44,
-              decoration: BoxDecoration(
-                color: c.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(Virtus.radioSm),
-              ),
-              child: Icon(icono, size: k ? 22 : 24, color: c),
+    final fondo = Color.lerp(Colors.white, c, 0.12)!;
+    final borde = Color.lerp(Colors.white, c, 0.36)!;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: k ? 12 : 16, vertical: k ? 4 : 5),
+      child: Material(
+        color: fondo,
+        borderRadius: BorderRadius.circular(Virtus.radio),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(Virtus.radio),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: k ? 14 : 16, vertical: k ? 12 : 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(Virtus.radio),
+              border: Border.all(color: borde, width: 1.4),
             ),
-      title: Text(
-        titulo,
-        style: TextStyle(fontSize: k ? 16 : 17, fontWeight: FontWeight.w700, color: Virtus.texto),
+            child: Row(
+              children: [
+                if (icono != null) ...[Icon(icono, size: k ? 26 : 28, color: c), SizedBox(width: k ? 12 : 14)],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: TextStyle(fontSize: k ? 16 : 17, fontWeight: FontWeight.w800, color: Virtus.texto),
+                      ),
+                      if (subtitulo != null)
+                        Text(
+                          subtitulo!,
+                          style: TextStyle(fontSize: k ? 12 : 13, color: Virtus.textoSecundario, height: 1.2),
+                        ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: c.withValues(alpha: 0.7), size: k ? 22 : 24),
+              ],
+            ),
+          ),
+        ),
       ),
-      subtitle: subtitulo == null
-          ? null
-          : Text(
-              subtitulo!,
-              style: TextStyle(fontSize: k ? 13 : 14, color: cs.onSurfaceVariant),
-            ),
-      onTap: onTap,
     );
   }
 }

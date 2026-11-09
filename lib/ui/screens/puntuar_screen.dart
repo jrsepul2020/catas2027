@@ -33,20 +33,26 @@ class PuntuarScreen extends ConsumerWidget {
       final activa = tms.where((x) => x.estado == 'activa').firstOrNull;
       final muestrasIdx = ref.watch(muestraPorIdProvider);
       final codigo = activa == null ? null : muestrasIdx[activa.muestraId]?.codigo;
-      return Card(
-        color: t.estado == 'abierta' ? Paleta.amarilloPastel : null,
+      final acento = info.$3.shade700;
+      final fondo = Color.lerp(Colors.white, info.$3.shade400, t.estado == 'abierta' ? 0.18 : 0.10)!;
+      final borde = Color.lerp(Colors.white, info.$3.shade600, 0.35)!;
+      return Material(
+        color: fondo,
+        borderRadius: BorderRadius.circular(Virtus.radio),
         child: InkWell(
           onTap: () => context.go('/puntuar/${t.id}'),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: k ? 14 : 20, vertical: k ? 12 : 16),
+          borderRadius: BorderRadius.circular(Virtus.radio),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: k ? 14 : 18, vertical: k ? 12 : 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(Virtus.radio),
+              border: Border.all(color: borde, width: 1.4),
+            ),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: k ? 26 : 34,
-                  backgroundColor: Color.alphaBlend(info.$3.shade400.withValues(alpha: 0.22), Colors.white),
-                  child: Icon(info.$2, size: k ? 26 : 34, color: info.$3.shade800),
-                ),
-                SizedBox(width: k ? 12 : 18),
+                Icon(info.$2, size: k ? 28 : 32, color: acento),
+                SizedBox(width: k ? 12 : 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,48 +62,22 @@ class PuntuarScreen extends ConsumerWidget {
                         mesas[t.mesaId]?.nombre ?? 'Sin mesa',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: k ? 18 : 22,
-                          fontWeight: FontWeight.w900,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                        style: TextStyle(fontSize: k ? 17 : 20, fontWeight: FontWeight.w900, color: Virtus.texto),
                       ),
-                      SizedBox(height: k ? 2 : 4),
                       Text(
-                        t.nombre,
+                        [t.nombre, info.$1, '$hechas/${tms.length}', if (codigo != null) 'Activa $codigo'].join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: k ? 16 : 19,
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: k ? 13 : 15,
+                          fontWeight: FontWeight.w700,
+                          color: codigo != null ? Paleta.azulOscuro : Virtus.textoSecundario,
                         ),
                       ),
-                      SizedBox(height: k ? 2 : 4),
-                      Text(
-                        [info.$1, '$hechas/${tms.length} muestras', if (codigo != null) 'Activa $codigo'].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: k ? 14 : 17,
-                          fontWeight: FontWeight.w800,
-                          color: codigo != null ? Paleta.azulOscuro : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (tms.isNotEmpty) ...[
-                        SizedBox(height: k ? 6 : 8),
-                        LinearProgressIndicator(
-                          value: hechas / tms.length,
-                          minHeight: k ? 7 : 10,
-                          color: info.$3,
-                          backgroundColor: info.$3.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ],
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, size: k ? 28 : 34),
+                Icon(Icons.chevron_right, size: k ? 26 : 30, color: acento),
               ],
             ),
           ),
@@ -112,10 +92,14 @@ class PuntuarScreen extends ConsumerWidget {
       vacio: l.isEmpty,
       queHacerSiVacio:
           'No hay tandas para el día del chip. Cambia el día o elige «Todos los días». '
-          'Si el panel Diagnóstico muestra tandas:0, Cloud no está devolviendo la tabla.',
+          'Si el resumen del inicio muestra 0 tandas, Cloud no está devolviendo la tabla.',
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('Puntuaciones'), actions: const [ChipDia(), ChipEntorno()]),
+      appBar: AppBar(
+        leading: botonVolver(context),
+        title: const Text('Puntuaciones'),
+        actions: const [ChipDia(), ChipEntorno()],
+      ),
       body:
           problema ??
           Ancho(
@@ -124,7 +108,7 @@ class PuntuarScreen extends ConsumerWidget {
               itemCount: l.length,
               gap: k ? 8 : 12,
               padding: EdgeInsets.all(k ? 10 : 14),
-              altoMinimo: k ? 110 : 130,
+              altoMinimo: k ? 72 : 84,
               itemBuilder: (c, i) => tarjeta(l[i]),
             ),
           ),
@@ -148,7 +132,7 @@ class HojaPuntuacionScreen extends ConsumerWidget {
     final t = ref.watch(tandaPorIdProvider)[tandaId];
     if (t == null) {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: AppBar(leading: botonVolver(context, destino: '/puntuar')),
         body: ref.watch(cargandoProvider)
             ? const Center(child: CircularProgressIndicator())
             : const Vacio(icono: Icons.hourglass_empty, texto: 'Tanda no encontrada'),
@@ -184,20 +168,21 @@ class HojaPuntuacionScreen extends ConsumerWidget {
       cuerpo = LayoutBuilder(
         builder: (context, box) {
           final anchoMax = box.maxWidth.clamp(0.0, 900.0);
-          final wCod = k ? 66.0 : 110.0;
-          final wTot = k ? 52.0 : 80.0;
-          // 16 de márgenes + 2 del borde de cada fila.
-          final wCel = ((anchoMax - 18 - wCod - wTot) / cs.length).clamp(40.0, 150.0);
-          final alto = k ? 46.0 : 60.0;
-          final fNota = k ? 17.0 : 21.0;
+          final wCod = k ? 78.0 : 120.0;
+          final wTot = k ? 64.0 : 92.0;
+          final ladoCel = k ? 42.0 : 52.0;
+          final huecoCeldas = anchoMax - 18 - wCod - wTot;
+          final wCel = (huecoCeldas / cs.length).clamp(ladoCel, ladoCel + 8);
+          final alto = k ? 52.0 : 64.0;
+          final fNota = k ? 20.0 : 24.0;
 
           Widget cabecera() => Row(
             children: [
               SizedBox(
                 width: wCod,
                 child: Text(
-                  'Muestra',
-                  style: TextStyle(fontSize: k ? 12 : 14, color: scheme.onSurfaceVariant),
+                  'Código',
+                  style: TextStyle(fontSize: k ? 13 : 15, fontWeight: FontWeight.w800, color: Virtus.texto),
                 ),
               ),
               for (final c in cs)
@@ -207,11 +192,11 @@ class HojaPuntuacionScreen extends ConsumerWidget {
                     children: [
                       Text(
                         'P${c.puesto ?? '-'}',
-                        style: TextStyle(fontSize: k ? 14 : 17, fontWeight: FontWeight.w900),
+                        style: TextStyle(fontSize: k ? 13 : 15, fontWeight: FontWeight.w900),
                       ),
                       Text(
                         c.iniciales,
-                        style: TextStyle(fontSize: k ? 10.5 : 13, color: scheme.onSurfaceVariant),
+                        style: TextStyle(fontSize: k ? 10 : 12, color: scheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -221,7 +206,7 @@ class HojaPuntuacionScreen extends ConsumerWidget {
                 child: Text(
                   'Total',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: k ? 13 : 16, fontWeight: FontWeight.w800),
+                  style: TextStyle(fontSize: k ? 14 : 17, fontWeight: FontWeight.w900, color: Virtus.texto),
                 ),
               ),
             ],
@@ -229,14 +214,13 @@ class HojaPuntuacionScreen extends ConsumerWidget {
 
           Widget fila(TandaMuestra tm) {
             final m = muestras[tm.muestraId];
-            final info = infoTM(tm.estado);
             final notas = [for (final c in cs) idx['${tm.muestraId}|${c.id}']];
             final vals = notas.map((n) => n?.total).whereType<double>().toList();
             final media = vals.isEmpty ? null : vals.reduce((a, b) => a + b) / vals.length;
-            final activa = tm.estado == 'activa';
+            final activa = tm.estado == 'activa' || tm.estado == 'en_curso';
             return Container(
               height: alto,
-              margin: const EdgeInsets.only(bottom: 4),
+              margin: const EdgeInsets.only(bottom: 5),
               decoration: BoxDecoration(
                 color: activa
                     ? Paleta.amarilloPastel
@@ -255,15 +239,15 @@ class HojaPuntuacionScreen extends ConsumerWidget {
                       height: alto,
                       child: Row(
                         children: [
+                          const SizedBox(width: 6),
+                          IconoEstadoTM(estado: tm.estado, tamano: k ? 22 : 26),
                           const SizedBox(width: 4),
-                          Icon(info.$2, size: k ? 14 : 18, color: info.$3.shade700),
-                          const SizedBox(width: 2),
                           Expanded(
                             child: Text(
                               m?.codigo ?? '?',
                               maxLines: 1,
                               overflow: TextOverflow.clip,
-                              style: TextStyle(fontSize: k ? 15 : 19, fontWeight: FontWeight.w900),
+                              style: TextStyle(fontSize: k ? 17 : 21, fontWeight: FontWeight.w900, color: Virtus.texto),
                             ),
                           ),
                         ],
@@ -273,7 +257,7 @@ class HojaPuntuacionScreen extends ConsumerWidget {
                   for (var j = 0; j < cs.length; j++)
                     _Celda(
                       ancho: wCel,
-                      alto: alto - 8,
+                      alto: ladoCel,
                       fuente: fNota,
                       nota: notas[j],
                       onTap: cerrada
@@ -285,7 +269,7 @@ class HojaPuntuacionScreen extends ConsumerWidget {
                     child: Text(
                       media == null ? '–' : media.toStringAsFixed(1).replaceAll('.', ','),
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: k ? 16 : 20, fontWeight: FontWeight.w900, color: Paleta.azulOscuro),
+                      style: TextStyle(fontSize: k ? 19 : 24, fontWeight: FontWeight.w900, color: Paleta.azulOscuro),
                     ),
                   ),
                 ],
@@ -337,6 +321,7 @@ class HojaPuntuacionScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: botonVolver(context, destino: '/puntuar'),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -435,6 +420,13 @@ class HojaPuntuacionScreen extends ConsumerWidget {
               titulo: tm.conIncidencia ? 'Resolver incidencia' : 'Marcar incidencia',
               onTap: () => Navigator.pop(s, tm.conIncidencia ? 'resolver' : 'incidencia'),
             ),
+            AccionHoja(
+              icono: Icons.restart_alt,
+              color: Virtus.error,
+              titulo: 'Eliminar puntuaciones y dejar pendiente',
+              subtitulo: 'Borra todas las notas de esta muestra y quita el estado activa/completada',
+              onTap: () => Navigator.pop(s, 'reiniciar'),
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -462,6 +454,26 @@ class HojaPuntuacionScreen extends ConsumerWidget {
         await nuevaIncidencia(context, ref, tm: tm);
       case 'resolver':
         await resolverIncidencia(context, ref, tm);
+      case 'reiniciar':
+        if (await confirmar(
+              context,
+              '¿Eliminar puntuaciones de ${m?.codigo}?',
+              texto:
+                  'Se borrarán TODAS las notas de esta muestra en la tanda y pasará a estado pendiente '
+                  '(deja de estar activa/completada). Esta acción no se puede deshacer desde la app.',
+              si: 'Eliminar y dejar pendiente',
+              destructivo: true,
+            ) &&
+            context.mounted) {
+          var n = 0;
+          final ok = await ejecutar(
+            context,
+            () async => n = await repo.reiniciarMuestra(tm.id),
+            accion: 'Reiniciar muestra ${m?.codigo}',
+            refrescar: tablasNotas,
+          );
+          if (ok && context.mounted) aviso(context, '${m?.codigo}: $n notas borradas · pendiente');
+        }
     }
   }
 }
@@ -477,27 +489,31 @@ class _Celda extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = estadosNota[nota?.estado]?.$3;
+    final lado = alto.clamp(36.0, ancho - 4);
     return SizedBox(
       width: ancho,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Center(
         child: Material(
-          color: nota == null ? Theme.of(context).colorScheme.surfaceContainer : (c ?? Colors.blue).shade100,
+          color: nota == null ? Virtus.neutroSuave : (c ?? Colors.blue).shade100,
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
             onTap: onTap,
-            child: SizedBox(
-              height: alto,
-              child: Center(
-                child: Text(
-                  _fmt(nota?.total),
-                  style: TextStyle(
-                    fontSize: fuente,
-                    fontWeight: FontWeight.w800,
-                    color: c?.shade900 ?? Theme.of(context).colorScheme.onSurface,
-                    fontStyle: nota?.manual == true ? FontStyle.italic : null,
-                  ),
+            child: Container(
+              width: lado,
+              height: lado,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: (c ?? Virtus.mcNeutro).shade300, width: 1),
+              ),
+              child: Text(
+                _fmt(nota?.total),
+                style: TextStyle(
+                  fontSize: fuente,
+                  fontWeight: FontWeight.w900,
+                  color: c?.shade900 ?? Virtus.texto,
+                  fontStyle: nota?.manual == true ? FontStyle.italic : null,
                 ),
               ),
             ),

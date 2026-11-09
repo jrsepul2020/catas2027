@@ -30,7 +30,11 @@ class _CatadoresScreenState extends ConsumerState<CatadoresScreen> {
       queHacerSiVacio: 'No hay catadores. Sincroniza desde Cloud o revisa el concurso.',
     );
     return Scaffold(
-      appBar: AppBar(title: Text('Catadores (${todos.length})'), actions: const [ChipEntorno()]),
+      appBar: AppBar(
+        leading: botonVolver(context),
+        title: Text('Catadores (${todos.length})'),
+        actions: const [ChipEntorno()],
+      ),
       body:
           problema ??
           Ancho(

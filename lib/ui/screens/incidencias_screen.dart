@@ -196,7 +196,7 @@ class _IncidenciasScreenState extends ConsumerState<IncidenciasScreen> {
     final abiertas = ref.watch(incidenciasAbiertasListaProvider);
     final cambios = ref.watch(cambiosProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Incidencias'), actions: const [ChipEntorno()]),
+      appBar: AppBar(leading: botonVolver(context), title: const Text('Incidencias'), actions: const [ChipEntorno()]),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.red.shade800,
         foregroundColor: Colors.white,

@@ -306,6 +306,38 @@ class Repo {
   Future<int> aprobarMuestra(int tmId) async =>
       ((await c.rpc('aprobar_muestra', params: {'p_tm': tmId})) as num?)?.toInt() ?? 0;
 
+  /// Borra todas las notas de la muestra en su tanda y la deja en `pendiente`.
+  Future<int> reiniciarMuestra(int tmId) async {
+    try {
+      return ((await c.rpc('reiniciar_muestra_admin', params: {'p_tm': tmId})) as num?)?.toInt() ?? 0;
+    } catch (e) {
+      // Si la migración nueva aún no está en el servidor, cae al plan B (RPCs ya existentes).
+      final msg = e.toString().toLowerCase();
+      if (!msg.contains('could not find') && !msg.contains('pgrst202') && !msg.contains('404')) rethrow;
+    }
+    final tm = await c.from('tanda_muestras').select('id,tanda_id,muestra_id').eq('id', tmId).maybeSingle();
+    if (tm == null) throw StateError('Muestra de tanda no encontrada');
+    final tandaId = tm['tanda_id'] as int;
+    final muestraId = tm['muestra_id'] as int;
+    final notas = await c.from('puntuaciones').select('id').eq('tanda_id', tandaId).eq('muestra_id', muestraId) as List;
+    for (final n in notas) {
+      final id = n['id'] as int;
+      try {
+        await c.rpc('borrar_puntuacion_admin', params: {'p_id': id});
+      } catch (_) {
+        await c.from('puntuaciones').delete().eq('id', id);
+      }
+    }
+    await c.from('tanda_muestras').update({'estado': 'pendiente', 'incidencia_motivo': null}).eq('id', tmId);
+    await registrar(
+      'reiniciar_muestra',
+      tabla: 'tanda_muestras',
+      registroId: tmId.toString(),
+      motivo: 'Admin reinició muestra (cliente): ${notas.length} notas',
+    );
+    return notas.length;
+  }
+
   // ------------------- incidencias -------------------
   Future<void> marcarIncidencia(int tmId, String motivo) =>
       c.rpc('marcar_incidencia', params: {'p_tm': tmId, 'p_motivo': motivo});

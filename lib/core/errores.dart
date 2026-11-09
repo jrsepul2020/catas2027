@@ -144,8 +144,9 @@ ErrorInterpretado interpretarError(Object e) {
     return ErrorInterpretado(
       titulo: 'Sin permiso',
       pista:
-          'La sesión actual no puede escribir ahí (RLS). Entra con usuario autenticado de gestión; '
-          'las tablets usan el rol anónimo y no deben hacer estas acciones.',
+          'Hace falta sesión de gestión (authenticated). Si omitiste el login: ve a Login, entra una vez '
+          'y marca «Guardar contraseña» — en pruebas se reutilizará sola. '
+          'Sin sesión solo hay lectura (rol anónimo, como las tablets).',
       tecnico: tecnico,
       codigo: code ?? '42501',
     );

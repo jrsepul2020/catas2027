@@ -46,9 +46,26 @@ class Revision extends Notifier<int> {
 
 final revisionProvider = NotifierProvider<Revision, int>(Revision.new);
 
-final clienteProvider = FutureProvider<SupabaseClient?>((ref) {
+final clienteProvider = FutureProvider<SupabaseClient?>((ref) async {
   ref.watch(revisionProvider);
-  return ref.watch(backendsProvider).cliente(ref.watch(entornoProvider));
+  final e = ref.watch(entornoProvider);
+  final b = ref.watch(backendsProvider);
+  final c = await b.cliente(e);
+  // Login silencioso en segundo plano (nunca bloquea el arranque ni el botón Entrar).
+  if (c != null && ref.read(omitirLoginProvider) && c.auth.currentSession == null) {
+    final email = ref.read(prefsProvider).getString('ultimo_email')?.trim();
+    final pass = b.passGuardada(e);
+    if (email != null && email.isNotEmpty && pass != null && pass.isNotEmpty) {
+      unawaited(() async {
+        try {
+          await c.auth.signInWithPassword(email: email, password: pass).timeout(const Duration(seconds: 8));
+        } catch (_) {
+          // Sigue anónimo: lecturas OK; escrituras de gestión pedirán login.
+        }
+      }());
+    }
+  }
+  return c;
 });
 
 final sesionProvider = StreamProvider<Session?>((ref) async* {

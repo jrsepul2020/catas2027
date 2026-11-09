@@ -40,7 +40,11 @@ class MesasScreen extends ConsumerWidget {
       queHacerSiVacio: 'Sin mesas en este concurso. Revisa el concurso elegido o sincroniza desde Cloud.',
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('Mesas'), actions: const [ChipDia(), ChipEntorno()]),
+      appBar: AppBar(
+        leading: botonVolver(context),
+        title: const Text('Mesas'),
+        actions: const [ChipDia(), ChipEntorno()],
+      ),
       body:
           problema ??
           (cols == 1
@@ -179,7 +183,7 @@ class MesaDetalleScreen extends ConsumerWidget {
     final mesa = ref.watch(mesaPorIdProvider)[id];
     if (mesa == null) {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: AppBar(leading: botonVolver(context, destino: '/mesas')),
         body: ref.watch(cargandoProvider)
             ? const Center(child: CircularProgressIndicator())
             : const Vacio(icono: Icons.table_restaurant, texto: 'Mesa no encontrada'),
@@ -190,6 +194,7 @@ class MesaDetalleScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: botonVolver(context, destino: '/mesas'),
         title: Text(mesa.nombre),
         actions: [
           const BotonRefrescar(

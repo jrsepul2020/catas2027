@@ -220,11 +220,13 @@ void main() {
       'Incidencias',
       'Catadores',
       'Muestras',
-      'Medallas',
+      'Medallero Provisional',
       'Auditoría',
     ]) {
       expect(find.text(t).hitTestable(), findsOneWidget, reason: t);
     }
+    expect(find.text('Catando'), findsOneWidget);
+    expect(find.text('Alertas'), findsOneWidget);
   });
 
   testWidgets('incidencias: lista la muestra con incidencia abierta', (tester) async {

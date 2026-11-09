@@ -35,7 +35,11 @@ class TandasScreen extends ConsumerWidget {
       queHacerSiVacio: 'Sin tandas para este día. Cambia el chip de día o elige «Todos los días».',
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('Tandas'), actions: const [ChipDia(), ChipEntorno()]),
+      appBar: AppBar(
+        leading: botonVolver(context),
+        title: const Text('Tandas'),
+        actions: const [ChipDia(), ChipEntorno()],
+      ),
       body:
           problema ??
           Ancho(
@@ -406,7 +410,7 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
     final t = ref.watch(tandaPorIdProvider)[widget.id];
     if (t == null) {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: AppBar(leading: botonVolver(context, destino: '/tandas')),
         body: ref.watch(cargandoProvider)
             ? const Center(child: CircularProgressIndicator())
             : const Vacio(icono: Icons.hourglass_empty, texto: 'Tanda no encontrada'),
@@ -439,6 +443,7 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: botonVolver(context, destino: '/tandas'),
         title: Text(t.nombre),
         actions: [
           const BotonRefrescar(
@@ -609,8 +614,15 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
                 onTap: () => Navigator.pop(s, 'incidencia'),
               ),
             AccionHoja(
-              icono: Icons.remove_circle,
-              color: Theme.of(s).colorScheme.error,
+              icono: Icons.restart_alt,
+              color: Virtus.error,
+              titulo: 'Eliminar puntuaciones y dejar pendiente',
+              subtitulo: 'Borra todas las notas y quita activa/completada/incidencia',
+              onTap: () => Navigator.pop(s, 'reiniciar'),
+            ),
+            AccionHoja(
+              icono: Icons.remove_circle_outline,
+              color: Virtus.error,
               titulo: 'Quitar de la tanda',
               onTap: () => Navigator.pop(s, 'quitar'),
             ),
@@ -644,12 +656,33 @@ class _TandaDetalleScreenState extends ConsumerState<TandaDetalleScreen> {
         await nuevaIncidencia(context, ref, tm: tm);
       case 'resolver':
         await resolverIncidencia(context, ref, tm);
+      case 'reiniciar':
+        if (await confirmar(
+              context,
+              '¿Eliminar puntuaciones de ${m?.codigo}?',
+              texto:
+                  'Se borrarán TODAS las notas de esta muestra en la tanda y pasará a estado pendiente. '
+                  'No se puede deshacer desde la app.',
+              si: 'Eliminar y dejar pendiente',
+              destructivo: true,
+            ) &&
+            context.mounted) {
+          var n = 0;
+          final ok = await ejecutar(
+            context,
+            () async => n = await repo.reiniciarMuestra(tm.id),
+            accion: 'Reiniciar muestra ${m?.codigo}',
+            refrescar: tablasNotas,
+          );
+          if (ok && context.mounted) aviso(context, '${m?.codigo}: $n notas borradas · pendiente');
+        }
       case 'quitar':
         if (await confirmar(
               context,
               '¿Quitar ${m?.codigo} de la tanda?',
               texto: 'Se borran sus notas (quedan en el registro) y la muestra se desactiva.',
               si: 'Quitar',
+              destructivo: true,
             ) &&
             context.mounted) {
           await ejecutar(

@@ -37,7 +37,8 @@ class _MedallasScreenState extends ConsumerState<MedallasScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Medallas'),
+        title: const Text('Medallero Provisional'),
+        leading: botonVolver(context),
         actions: [
           IconButton(
             tooltip: 'Copiar resultados (Excel)',

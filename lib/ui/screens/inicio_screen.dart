@@ -7,7 +7,20 @@ import '../marca.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
-/// Panel principal: todas las secciones en una pantalla, sin scroll en el teléfono.
+/// Acentos pastel de cada sección del menú.
+abstract final class _Seccion {
+  static const directo = Virtus.error;
+  static const mesas = Virtus.accion;
+  static const puntuar = Virtus.advertencia;
+  static const tandas = Virtus.exito;
+  static const incidencias = Virtus.error;
+  static const catadores = Color(0xFF7C3AED);
+  static const muestras = Color(0xFFC2410C);
+  static const medallero = Color(0xFFCA8A04);
+  static const auditoria = Virtus.textoSecundario;
+}
+
+/// Panel principal: resumen neutro + botones pastel compactos.
 class InicioScreen extends ConsumerWidget {
   const InicioScreen({super.key});
 
@@ -21,6 +34,11 @@ class InicioScreen extends ConsumerWidget {
     final punt = ref.watch(puntuacionesProvider);
     final inc = ref.watch(incidenciasAbiertasProvider);
     final cargando = ref.watch(cargandoProvider);
+    final dia = ref.watch(diaIdProvider);
+    final dias = ref.watch(diasProvider);
+    final conteos = ref.watch(conteoTablasProvider);
+    final errores = ref.watch(erroresTablasProvider);
+    final avisos = ref.watch(avisosTablasProvider);
     final k = esCompacto(context);
 
     final abiertas = tandas.where((t) => t.estado == 'abierta').length;
@@ -29,73 +47,98 @@ class InicioScreen extends ConsumerWidget {
     final conectados = catadores.where((c) => c.conectado).length;
     final catando = mesas.where((m) => tandas.any((t) => t.mesaId == m.id && t.estado == 'abierta')).length;
     final reservas = ref.watch(tabletsLibresProvider).length;
+    final nombreDia = dia == null
+        ? 'Todos'
+        : (dias.where((d) => d.id == dia).map((d) => d.nombre).firstOrNull ?? 'Día $dia');
+    final tablasMal = errores.length + avisos.length;
+    final filasDatos = conteos.values.where((v) => v != '…' && v != 'ERR').fold<int>(0, (a, v) {
+      return a + (int.tryParse(v) ?? 0);
+    });
+
+    final resumen = [
+      TarjetaResumen(
+        titulo: 'Catando',
+        valor: '$catando/${mesas.length}',
+        icono: Icons.live_tv_outlined,
+        alerta: catando > 0,
+      ),
+      TarjetaResumen(titulo: 'Abiertas', valor: '$abiertas', icono: Icons.format_list_numbered_outlined),
+      TarjetaResumen(titulo: 'Alertas', valor: '$inc', icono: Icons.warning_amber_outlined, alerta: inc > 0),
+      TarjetaResumen(titulo: 'Tablets', valor: '$conectados/${catadores.length}', icono: Icons.tablet_android_outlined),
+      TarjetaResumen(titulo: 'Día', valor: nombreDia, icono: Icons.calendar_today_outlined),
+      TarjetaResumen(
+        titulo: tablasMal > 0 ? 'Datos · aviso' : 'Datos',
+        valor: '$filasDatos',
+        icono: tablasMal > 0 ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
+        alerta: tablasMal > 0,
+      ),
+    ];
 
     final tiles = [
       Baldosa(
         icono: Icons.live_tv_outlined,
         texto: 'En directo',
-        sub: '$catando de ${mesas.length} mesas catando',
-        color: Virtus.error,
+        sub: '$catando de ${mesas.length} mesas',
+        color: _Seccion.directo,
         onTap: () => context.go('/directo'),
       ),
       Baldosa(
         icono: Icons.table_restaurant_outlined,
         texto: 'Mesas',
         sub: '${mesas.length} mesas',
-        color: Virtus.accion,
+        color: _Seccion.mesas,
         onTap: () => context.go('/mesas'),
       ),
       Baldosa(
         icono: Icons.grid_view_outlined,
         texto: 'Puntuaciones',
         sub: '${punt.length} notas',
-        color: Virtus.advertencia,
+        color: _Seccion.puntuar,
         onTap: () => context.go('/puntuar'),
       ),
       Baldosa(
         icono: Icons.format_list_numbered_outlined,
         texto: 'Tandas',
-        sub: '$abiertas abiertas · $cerradas cerradas',
-        color: Virtus.exito,
+        sub: '$abiertas ab. · $cerradas cer.',
+        color: _Seccion.tandas,
         onTap: () => context.go('/tandas'),
       ),
       Baldosa(
         icono: Icons.warning_amber_outlined,
         texto: 'Incidencias',
         sub: inc == 0 ? 'Sin abiertas' : '$inc abiertas',
-        color: Virtus.error,
+        color: _Seccion.incidencias,
         badge: inc,
         onTap: () => context.go('/incidencias'),
       ),
       Baldosa(
         icono: Icons.groups_outlined,
         texto: 'Catadores',
-        sub: '$conectados/${catadores.length} tablet${ausentes > 0 ? ' · $ausentes aus.' : ''}',
-        color: Virtus.accion,
+        sub: '$conectados/${catadores.length}${ausentes > 0 ? ' · $ausentes aus.' : ''}',
+        color: _Seccion.catadores,
         onTap: () => context.go('/catadores'),
       ),
       Baldosa(
         icono: Icons.wine_bar_outlined,
         texto: 'Muestras',
         sub: '${muestras.where((m) => m.activa).length} activas',
-        color: Virtus.marino,
+        color: _Seccion.muestras,
         onTap: () => context.go('/muestras'),
       ),
       Baldosa(
         icono: Icons.military_tech_outlined,
-        texto: 'Medallas',
-        sub: 'Resultados',
-        color: Virtus.advertencia,
+        texto: 'Medallero Provisional',
+        sub: 'Resultados del día',
+        color: _Seccion.medallero,
         onTap: () => context.go('/medallas'),
       ),
       Baldosa(
         icono: Icons.fact_check_outlined,
         texto: 'Auditoría',
-        sub: reservas > 0 ? 'Chequeos · $reservas reserva${reservas == 1 ? '' : 's'}' : 'Incongruencias del día',
-        color: Virtus.textoSecundario,
+        sub: reservas > 0 ? '$reservas reserva${reservas == 1 ? '' : 's'}' : 'Chequeos del día',
+        color: _Seccion.auditoria,
         onTap: () => context.go('/auditoria'),
       ),
-      // Sincronizar: engranaje de la barra / rail (mantiene 9 baldosas sin scroll en el Redmi).
     ];
 
     final cols = k ? 3 : (MediaQuery.sizeOf(context).width >= 1100 ? 5 : 3);
@@ -143,21 +186,52 @@ class InicioScreen extends ConsumerWidget {
             max: 1200,
             child: LayoutBuilder(
               builder: (c, box) {
-                // Las baldosas se ajustan para caber sin scroll.
                 final pad = k ? 10.0 : 16.0;
-                final gap = k ? 8.0 : 14.0;
-                final filas = (tiles.length / cols).ceil();
+                final gap = k ? 6.0 : 10.0;
                 final w = box.maxWidth.isFinite ? box.maxWidth : 400.0;
                 final h = box.maxHeight.isFinite ? box.maxHeight : 600.0;
+                final kpiCols = k ? 3 : 6;
+                final kpiFilas = (resumen.length / kpiCols).ceil();
+                final kpiGap = k ? 6.0 : 8.0;
+                final kpiAlto = k ? 64.0 : 76.0;
+                final kpiBloque = kpiFilas * kpiAlto + (kpiFilas - 1) * kpiGap + (k ? 8.0 : 10.0);
+                final filas = (tiles.length / cols).ceil();
                 final ancho = (w - pad * 2 - gap * (cols - 1)) / cols;
-                final alto = ((h - pad * 2 - gap * (filas - 1)) / filas).clamp(90.0, ancho * 1.1);
-                return GridView.count(
+                final altoDisp = (h - pad * 2 - kpiBloque - gap * (filas - 1)) / filas;
+                // Botones más bajos / compactos.
+                final alto = altoDisp.clamp(k ? 78.0 : 88.0, k ? 96.0 : 110.0);
+                return Padding(
                   padding: EdgeInsets.all(pad),
-                  crossAxisCount: cols,
-                  mainAxisSpacing: gap,
-                  crossAxisSpacing: gap,
-                  childAspectRatio: ancho / alto,
-                  children: tiles,
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: kpiFilas * kpiAlto + (kpiFilas - 1) * kpiGap,
+                        child: GridView.count(
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: kpiCols,
+                          mainAxisSpacing: kpiGap,
+                          crossAxisSpacing: kpiGap,
+                          childAspectRatio: ((w - pad * 2 - kpiGap * (kpiCols - 1)) / kpiCols) / kpiAlto,
+                          children: resumen,
+                        ),
+                      ),
+                      SizedBox(height: k ? 8 : 10),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: GridView.count(
+                            physics: const NeverScrollableScrollPhysics(),
+                            shrinkWrap: true,
+                            crossAxisCount: cols,
+                            mainAxisSpacing: gap,
+                            crossAxisSpacing: gap,
+                            childAspectRatio: ancho / alto,
+                            children: tiles,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),

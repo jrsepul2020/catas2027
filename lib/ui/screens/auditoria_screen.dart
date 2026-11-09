@@ -153,7 +153,11 @@ class AuditoriaScreen extends ConsumerWidget {
     final k = esCompacto(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Auditoría'), actions: const [ChipDia(), ChipEntorno()]),
+      appBar: AppBar(
+        leading: botonVolver(context),
+        title: const Text('Auditoría'),
+        actions: const [ChipDia(), ChipEntorno()],
+      ),
       body: Ancho(
         max: 900,
         child: Column(

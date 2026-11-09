@@ -42,7 +42,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (cli.isLoading || (!sinLogin && ses.isLoading)) return loc == '/carga' ? null : '/carga';
       if (cli.value == null) return loc == '/configuracion' ? null : '/configuracion';
       if (!sinLogin && ses.value == null) return libres.contains(loc) ? null : '/login';
-      if (loc == '/login' || loc == '/carga') return '/';
+      // Con omitir-login se puede abrir /login para autenticarse (RLS).
+      // Solo salir de /login cuando ya hay sesión.
+      if (loc == '/carga') return '/';
+      if (loc == '/login' && ses.value != null) return '/';
       // Varios concursos y ninguno elegido: pantalla de elección.
       final sinConcurso = ref.read(concursosCargadosProvider) && ref.read(concursoIdProvider) == null;
       if (sinConcurso && !{'/catas', '/configuracion', '/sync'}.contains(loc)) return '/catas';

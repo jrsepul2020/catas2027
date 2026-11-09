@@ -36,6 +36,7 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: botonVolver(context),
         title: Text('Muestras (${l.length}/${todas.length})'),
         actions: [
           PopupMenuButton<int>(

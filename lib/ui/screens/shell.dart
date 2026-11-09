@@ -21,7 +21,7 @@ const _destinos = [
   _Dest('/mesas', Icons.table_restaurant_outlined, 'Mesas'),
   _Dest('/puntuar', Icons.grid_view_outlined, 'Puntuac.'),
   _Dest('/incidencias', Icons.warning_amber_outlined, 'Incidencias'),
-  _Dest('/medallas', Icons.military_tech_outlined, 'Medallas', movil: false),
+  _Dest('/medallas', Icons.military_tech_outlined, 'Medallero', movil: false),
   _Dest('/tandas', Icons.format_list_numbered_outlined, 'Tandas', movil: false),
   _Dest('/catadores', Icons.groups_outlined, 'Catadores', movil: false),
   _Dest('/muestras', Icons.wine_bar_outlined, 'Muestras', movil: false),
@@ -100,8 +100,8 @@ class Shell extends ConsumerWidget {
               child: Column(
                 children: [
                   const AvisoActualizacionDisponible(),
+                  const AvisoSesionGestion(),
                   Expanded(child: child),
-                  const PanelDiagnostico(),
                 ],
               ),
             ),
@@ -113,8 +113,8 @@ class Shell extends ConsumerWidget {
       body: Column(
         children: [
           const AvisoActualizacionDisponible(),
+          const AvisoSesionGestion(),
           Expanded(child: child),
-          const PanelDiagnostico(),
         ],
       ),
       bottomNavigationBar: NavigationBar(

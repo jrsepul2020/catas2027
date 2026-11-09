@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/backend.dart';
+import '../../core/errores.dart';
 import '../../core/providers.dart';
 import '../marca.dart';
 import '../theme.dart';
@@ -37,34 +38,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _entrar() async {
-    final c = await ref.read(clienteProvider.future);
-    if (c == null) {
-      if (mounted) {
-        aviso(context, 'Primero configura la URL y la clave en Conexiones', error: true);
-        context.push('/configuracion');
-      }
-      return;
-    }
+    if (_cargando) return;
     setState(() => _cargando = true);
     final email = _email.text.trim();
     final pass = _pass.text;
+    if (email.isEmpty || pass.isEmpty) {
+      if (mounted) {
+        setState(() => _cargando = false);
+        aviso(context, 'Escribe email y contraseña', error: true);
+      }
+      return;
+    }
     final e = ref.read(entornoProvider);
     final b = ref.read(backendsProvider);
-    await ref.read(prefsProvider).setString('ultimo_email', email);
-    if (!mounted) return;
-    final ok = await ejecutar(context, () async {
-      await c.auth.signInWithPassword(email: email, password: pass);
-      await b.setRecordarPass(e, recordar: _guardarPass, pass: pass);
-      // Guarda conexiones en el usuario (Cloud/Local) y trae las del otro entorno.
-      try {
-        await b.aplicarConexionesDelUsuario(c, e);
-        await b.subirConexionesAlUsuario(c);
-      } catch (_) {
-        // El login ya fue bien; la sync de conexiones no debe bloquear.
+    try {
+      // Preferir cliente ya creado; no esperar un login silencioso colgado.
+      var c = b.clienteSiExiste(e) ?? ref.read(clienteProvider).value;
+      c ??= await ref.read(clienteProvider.future).timeout(const Duration(seconds: 10));
+      if (c == null) {
+        if (mounted) {
+          aviso(context, 'Primero configura la URL y la clave en Conexiones', error: true);
+          context.push('/configuracion');
+        }
+        return;
       }
-    });
-    if (ok) ref.read(revisionProvider.notifier).subir();
-    if (mounted) setState(() => _cargando = false);
+      final cliente = c;
+      await ref.read(prefsProvider).setString('ultimo_email', email);
+      if (!mounted) return;
+      final ok = await ejecutar(context, () async {
+        await cliente.auth.signInWithPassword(email: email, password: pass).timeout(const Duration(seconds: 12));
+        await b.setRecordarPass(e, recordar: _guardarPass, pass: pass);
+        // Guarda conexiones en el usuario (Cloud/Local) y trae las del otro entorno.
+        try {
+          await b.aplicarConexionesDelUsuario(cliente, e).timeout(const Duration(seconds: 6));
+          await b.subirConexionesAlUsuario(cliente).timeout(const Duration(seconds: 6));
+        } catch (_) {
+          // El login ya fue bien; la sync de conexiones no debe bloquear.
+        }
+      }, accion: 'Iniciar sesión');
+      if (!mounted) return;
+      if (ok) {
+        // Ir al menú ya (con omitir-login el redirect a veces no reacciona al instante).
+        context.go('/');
+      }
+    } catch (err, st) {
+      if (mounted) await registrarYMostrarError(context, err, stack: st, accion: 'Iniciar sesión');
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
   }
 
   @override
