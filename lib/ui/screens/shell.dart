@@ -45,7 +45,7 @@ class Shell extends ConsumerWidget {
     final inc = ref.watch(incidenciasAbiertasProvider);
 
     Widget icono(_Dest d, {bool sel = false}) {
-      final i = Icon(d.icono);
+      final i = Icon(d.icono, size: VirtusIcono.nav);
       if (d.ruta == '/incidencias' && inc > 0) {
         return Badge(label: Text('$inc'), child: i);
       }

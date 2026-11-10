@@ -1,162 +1,94 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/backend.dart';
 import '../../core/providers.dart';
-import '../../data/models.dart';
+import '../../data/auditoria.dart';
+import '../componentes_cataris.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
-class _Aviso {
-  const _Aviso(this.nivel, this.titulo, this.detalle);
-  final String nivel; // error | aviso | ok
-  final String titulo;
-  final String detalle;
-  MaterialColor get color => switch (nivel) {
-    'error' => Colors.red,
-    'aviso' => Colors.amber,
-    _ => Colors.blue,
-  };
-}
-
-/// Comprueba incongruencias del día de trabajo (mesas, tandas, muestras…).
-List<_Aviso> _comprobar(WidgetRef ref) {
-  final mesas = ref.watch(mesasProvider);
-  final cats = ref.watch(catadoresProvider);
-  final tandas = ref.watch(tandasProvider);
-  final tms = ref.watch(tandaMuestrasProvider);
-  final muestras = ref.watch(muestrasProvider);
-  final porMesa = ref.watch(concursoProvider)?.catadoresPorMesa ?? 5;
-  final avisos = <_Aviso>[];
-
-  // Mesas: plantilla y presidente.
-  for (final m in mesas) {
-    final enMesa = cats.where((c) => c.mesaId == m.id).toList();
-    final presi = enMesa.where((c) => c.esPresidente).length;
-    final puestos = enMesa.map((c) => c.puesto).whereType<int>().toList();
-    final repetidos = puestos.toSet().length != puestos.length;
-    if (enMesa.length != porMesa) {
-      avisos.add(
-        _Aviso('aviso', '${m.nombre}: ${enMesa.length}/$porMesa catadores', 'Faltan o sobran puestos en la mesa.'),
-      );
-    }
-    if (presi != 1) {
-      avisos.add(_Aviso('error', '${m.nombre}: $presi presidentes', 'Debe haber exactamente 1 presidente.'));
-    }
-    if (repetidos) {
-      avisos.add(_Aviso('error', '${m.nombre}: puestos repetidos', 'Hay dos catadores con el mismo puesto.'));
-    }
-    if (enMesa.any((c) => c.puesto == null)) {
-      avisos.add(_Aviso('aviso', '${m.nombre}: puesto sin número', 'Algún catador no tiene puesto asignado.'));
-    }
-  }
-
-  // Catadores sin mesa.
-  final sueltos = cats.where((c) => c.mesaId == null && c.presente).length;
-  if (sueltos > 0) {
-    avisos.add(_Aviso('aviso', '$sueltos catadores presentes sin mesa', 'Revisa la asignación de puestos.'));
-  }
-
-  // Una tanda abierta por mesa.
-  for (final m in mesas) {
-    final abiertas = tandas.where((t) => t.mesaId == m.id && t.estado == 'abierta').length;
-    if (abiertas > 1) {
-      avisos.add(_Aviso('error', '${m.nombre}: $abiertas tandas abiertas', 'Solo puede haber una tanda abierta.'));
-    }
-  }
-
-  // Una muestra activa por tanda + categoría coherente + orden contiguo.
-  final tandasPorId = {for (final t in tandas) t.id: t};
-  final muestrasPorId = {for (final m in muestras) m.id: m};
-  final porTanda = <int, List<TandaMuestra>>{};
-  for (final tm in tms) {
-    if (!tandasPorId.containsKey(tm.tandaId)) continue;
-    (porTanda[tm.tandaId] ??= []).add(tm);
-  }
-  for (final e in porTanda.entries) {
-    final t = tandasPorId[e.key]!;
-    final lista = [...e.value]..sort((a, b) => a.orden.compareTo(b.orden));
-    final activas = lista.where((x) => x.estado == 'activa').length;
-    if (activas > 1) {
-      avisos.add(_Aviso('error', '${t.nombre}: $activas muestras activas', 'Las tablets solo muestran una.'));
-    }
-    final ordenes = lista.map((x) => x.orden).toList();
-    final esperado = [for (var i = 1; i <= ordenes.length; i++) i];
-    if (ordenes.join(',') != esperado.join(',')) {
-      avisos.add(
-        _Aviso('aviso', '${t.nombre}: orden de muestras irregular', 'Debería ser 1…${ordenes.length} contiguo.'),
-      );
-    }
-    if (t.categoriaId != null) {
-      final otras = lista.where((tm) => muestrasPorId[tm.muestraId]?.categoriaId != t.categoriaId).length;
-      if (otras > 0) {
-        avisos.add(
-          _Aviso('error', '${t.nombre}: $otras muestras de otra categoría', 'La categoría de la tanda no coincide.'),
-        );
-      }
-    }
-  }
-
-  // Misma muestra en varias tandas del día.
-  final tandasDeMuestra = <int, List<int>>{};
-  for (final tm in tms) {
-    if (!tandasPorId.containsKey(tm.tandaId)) continue;
-    (tandasDeMuestra[tm.muestraId] ??= []).add(tm.tandaId);
-  }
-  for (final e in tandasDeMuestra.entries) {
-    final ids = e.value.toSet();
-    if (ids.length > 1) {
-      final cod = muestrasPorId[e.key]?.codigo ?? '?';
-      avisos.add(
-        _Aviso(
-          'error',
-          'Código $cod en ${ids.length} tandas',
-          ids.map((id) => tandasPorId[id]?.nombre ?? '$id').join(', '),
-        ),
-      );
-    }
-  }
-
-  // Códigos ciegos duplicados.
-  final porCodigo = <String, List<Muestra>>{};
-  for (final m in muestras) {
-    if (m.codigo.isEmpty) continue;
-    (porCodigo[m.codigo] ??= []).add(m);
-  }
-  for (final e in porCodigo.entries) {
-    if (e.value.length > 1) {
-      avisos.add(_Aviso('error', 'Código ciego ${e.key} repetido', '${e.value.length} muestras con el mismo código.'));
-    }
-  }
-
-  // Tablets de reserva.
-  final libres = ref.watch(tabletsLibresProvider).length;
-  if (libres == 0) {
-    avisos.add(const _Aviso('aviso', 'Sin tablets de reserva', 'Conviene tener al menos 1–2 tablets libres.'));
-  } else {
-    avisos.add(_Aviso('ok', '$libres tablet${libres == 1 ? '' : 's'} de reserva', 'Listas para sustituir una rota.'));
-  }
-
-  if (avisos.where((a) => a.nivel != 'ok').isEmpty) {
-    avisos.insert(0, const _Aviso('ok', 'Sin incongruencias graves', 'Mesas, tandas y muestras cuadran.'));
-  }
-  return avisos;
-}
-
-class AuditoriaScreen extends ConsumerWidget {
+/// Auditoría del día: comprobaciones estructurales + (en LOCAL) revisiones SQL.
+class AuditoriaScreen extends ConsumerStatefulWidget {
   const AuditoriaScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final avisos = _comprobar(ref);
-    final errores = avisos.where((a) => a.nivel == 'error').length;
-    final warnings = avisos.where((a) => a.nivel == 'aviso').length;
+  ConsumerState<AuditoriaScreen> createState() => _AuditoriaScreenState();
+}
+
+class _AuditoriaScreenState extends ConsumerState<AuditoriaScreen> {
+  ResultadoAuditoria? _res;
+  bool _cargando = false;
+  String? _avisoEntorno;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ejecutar());
+  }
+
+  Future<SupabaseClient?> _clienteLocal() async {
+    try {
+      return await ref.read(backendsProvider).cliente(Entorno.local);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _ejecutar() async {
+    if (_cargando) return;
+    setState(() {
+      _cargando = true;
+      _avisoEntorno = null;
+    });
+    final esLocal = ref.read(esLocalProvider);
+    SupabaseClient? local;
+    if (esLocal) {
+      local = await _clienteLocal();
+      if (local == null) {
+        _avisoEntorno = 'No hay cliente LOCAL: solo se muestran las comprobaciones estructurales.';
+      }
+    } else {
+      _avisoEntorno =
+          'Estás en CLOUD: se muestran las comprobaciones estructurales. '
+          'Cambia a LOCAL (día cargado) para las 8 revisiones SQL del día.';
+    }
+    final res = await ejecutarAuditoria(ref: ref, local: local);
+    if (!mounted) return;
+    ref.read(ultimaAuditoriaProvider.notifier).guardar(res);
+    setState(() {
+      _res = res;
+      _cargando = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final k = esCompacto(context);
+    final res = _res;
+    final mirar = res?.mirar ?? const [];
+    final cuenta = res?.cuenta ?? const [];
+    final hora = res == null ? null : formatearHoraAuditoria(res.cuando);
 
     return Scaffold(
       appBar: AppBar(
         leading: botonVolver(context),
         title: const Text('Auditoría'),
-        actions: const [ChipDia(), ChipEntorno()],
+        actions: [
+          if (hora != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Center(
+                child: Text(
+                  'Última: $hora',
+                  style: TextStyle(fontSize: k ? 12 : 14, fontWeight: FontWeight.w700, color: Paleta.texto),
+                ),
+              ),
+            ),
+          const ChipDia(),
+          const ChipEntorno(),
+        ],
       ),
       body: Ancho(
         max: 900,
@@ -168,77 +100,182 @@ class AuditoriaScreen extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      errores == 0 && warnings == 0
-                          ? 'Todo en orden'
-                          : '$errores error${errores == 1 ? '' : 'es'} · $warnings aviso${warnings == 1 ? '' : 's'}',
+                      res == null
+                          ? 'Comprobando…'
+                          : res.todoCorrecto
+                          ? 'Todo correcto'
+                          : '${mirar.length} a mirar · ${cuenta.length} a tener en cuenta',
                       style: TextStyle(
                         fontSize: k ? 16 : 18,
                         fontWeight: FontWeight.w800,
-                        color: errores > 0 ? Paleta.rojo : (warnings > 0 ? Paleta.amarilloOscuro : Paleta.azulOscuro),
+                        color: res == null
+                            ? Paleta.texto
+                            : res.todoCorrecto
+                            ? Paleta.azulOscuro
+                            : (mirar.isNotEmpty ? Paleta.rojo : Paleta.amarilloOscuro),
                       ),
                     ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _cargando ? null : _ejecutar,
+                    icon: _cargando
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          )
+                        : const Icon(Icons.fact_check),
+                    label: Text(_cargando ? '…' : 'Comprobar'),
                   ),
                 ],
               ),
             ),
+            if (_avisoEntorno != null)
+              Padding(
+                padding: EdgeInsets.fromLTRB(k ? 12 : 16, 0, k ? 12 : 16, 8),
+                child: _AvisoBanda(texto: _avisoEntorno!, color: Colors.amber),
+              ),
+            if (res?.error != null)
+              Padding(
+                padding: EdgeInsets.fromLTRB(k ? 12 : 16, 0, k ? 12 : 16, 8),
+                child: _AvisoBanda(texto: res!.error!, color: Colors.red),
+              ),
             Expanded(
-              child: ListaLlena(
-                itemCount: avisos.length,
-                gap: k ? 8 : 10,
-                padding: EdgeInsets.fromLTRB(k ? 10 : 14, 0, k ? 10 : 14, k ? 10 : 14),
-                altoMinimo: k ? 88 : 100,
-                itemBuilder: (c, i) {
-                  final a = avisos[i];
-                  return Card(
-                    color: Color.alphaBlend(a.color.shade400.withValues(alpha: 0.12), Colors.white),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: k ? 12 : 16, vertical: k ? 10 : 14),
-                      child: Row(
-                        children: [
-                          Icon(
-                            a.nivel == 'error'
-                                ? Icons.error
-                                : a.nivel == 'aviso'
-                                ? Icons.warning_amber_rounded
-                                : Icons.verified,
-                            size: k ? 28 : 34,
-                            color: a.color.shade800,
-                          ),
-                          SizedBox(width: k ? 10 : 14),
-                          Expanded(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    a.titulo,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: k ? 15 : 18, fontWeight: FontWeight.w800),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    a.detalle,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: k ? 13 : 15, fontWeight: FontWeight.w600),
-                                  ),
-                                ],
+              child: res == null && _cargando
+                  ? const Center(child: CircularProgressIndicator())
+                  : res == null
+                  ? const Vacio(icono: Icons.fact_check_outlined, texto: 'Pulsa Comprobar para auditar el día.')
+                  : res.todoCorrecto
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified, size: k ? 48 : 64, color: Paleta.azul),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Todo correcto',
+                              style: TextStyle(
+                                fontSize: k ? 20 : 24,
+                                fontWeight: FontWeight.w900,
+                                color: Paleta.azulOscuro,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 6),
+                            Text(
+                              'Comprobado a las $hora',
+                              style: TextStyle(fontSize: k ? 14 : 16, fontWeight: FontWeight.w600, color: Paleta.texto),
+                            ),
+                          ],
+                        ),
                       ),
+                    )
+                  : ListView(
+                      padding: EdgeInsets.fromLTRB(k ? 10 : 14, 0, k ? 10 : 14, k ? 14 : 20),
+                      children: [
+                        if (mirar.isNotEmpty) ...[
+                          _CabeceraBloque(titulo: 'Hay que mirarlo', color: Colors.red, k: k),
+                          for (final h in mirar) _FilaHallazgo(h: h, color: Colors.red, k: k),
+                          SizedBox(height: k ? 12 : 16),
+                        ],
+                        if (cuenta.isNotEmpty) ...[
+                          _CabeceraBloque(titulo: 'Para tener en cuenta', color: Colors.amber, k: k),
+                          for (final h in cuenta) _FilaHallazgo(h: h, color: Colors.amber, k: k),
+                        ],
+                      ],
                     ),
-                  );
-                },
-              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AvisoBanda extends StatelessWidget {
+  const _AvisoBanda({required this.texto, required this.color});
+  final String texto;
+  final MaterialColor color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.shade200),
+      ),
+      child: Text(
+        texto,
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color.shade900),
+      ),
+    );
+  }
+}
+
+class _CabeceraBloque extends StatelessWidget {
+  const _CabeceraBloque({required this.titulo, required this.color, required this.k});
+  final String titulo;
+  final MaterialColor color;
+  final bool k;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: k ? 6 : 8, top: 4),
+      child: Text(
+        titulo,
+        style: TextStyle(fontSize: k ? 15 : 17, fontWeight: FontWeight.w900, color: color.shade800),
+      ),
+    );
+  }
+}
+
+class _FilaHallazgo extends StatelessWidget {
+  const _FilaHallazgo({required this.h, required this.color, required this.k});
+  final HallazgoAuditoria h;
+  final MaterialColor color;
+  final bool k;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: k ? 6 : 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(color.shade400.withValues(alpha: 0.10), Colors.white),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: k ? 10 : 14, vertical: k ? 9 : 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                h.hayQueMirarlo ? Icons.error_outline : Icons.info_outline,
+                size: k ? 22 : 26,
+                color: color.shade800,
+              ),
+              SizedBox(width: k ? 8 : 12),
+              Expanded(
+                child: Text(
+                  h.texto,
+                  style: TextStyle(
+                    fontSize: k ? 14 : 16,
+                    fontWeight: FontWeight.w600,
+                    color: Paleta.texto,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

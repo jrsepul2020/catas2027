@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'theme.dart';
 
@@ -46,12 +45,7 @@ class LogoCataris extends StatelessWidget {
           Text(
             MarcaApp.nombre,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: tamano > 64 ? 28 : (tamano > 40 ? 16 : 13),
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-              color: colorNombre,
-            ),
+            style: VirtusTexto.importante(size: tamano > 64 ? 28 : (tamano > 40 ? 16 : 13), color: colorNombre),
           ),
         ],
       ],

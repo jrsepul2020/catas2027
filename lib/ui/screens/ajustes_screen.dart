@@ -7,6 +7,9 @@ import '../../core/actualizacion.dart';
 import '../../core/backend.dart';
 import '../../core/errores.dart';
 import '../../core/providers.dart';
+import '../demo_herramientas.dart';
+import '../iconos.dart';
+import '../theme.dart';
 import '../widgets.dart';
 import 'catas_screen.dart';
 
@@ -84,6 +87,48 @@ class AjustesScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             const TarjetaActualizacion(),
+            if (ref.watch(modoPruebasProvider)) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Herramientas DEMO',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Solo visibles con modo pruebas (mantener pulsado el chip de entorno). Clave 0000.',
+                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Virtus.error,
+                        side: const BorderSide(color: Virtus.error),
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      onPressed: () => borrarTodoDemo(context, ref),
+                      icon: const Icon(Icons.delete_forever_outlined),
+                      label: const Text('Borrar todo'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                      onPressed: () => crearDatosDemo(context, ref),
+                      icon: const Icon(Iconos.mas),
+                      label: const Text('Crear DEMO'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
             Card(
               child: ListTile(

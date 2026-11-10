@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/backend.dart';
 import '../core/errores.dart';
@@ -10,6 +11,33 @@ import 'iconos.dart';
 import 'theme.dart';
 
 bool esAncho(BuildContext c) => MediaQuery.sizeOf(c).width >= 900;
+
+/// Cliente con sesión authenticated. Reutiliza la contraseña recordada de
+/// cualquiera de los dos entornos (suele ser la misma cuenta).
+Future<SupabaseClient> clienteAutenticado(WidgetRef ref, Entorno e) async {
+  final b = ref.read(backendsProvider);
+  final c = await b.cliente(e);
+  if (c == null) {
+    throw Exception('${e.corto} sin configurar (URL/clave en Configuración)');
+  }
+  if (c.auth.currentSession != null) return c;
+
+  final email = ref.read(prefsProvider).getString('ultimo_email')?.trim();
+  final claves = [b.passGuardada(e), b.passGuardada(e.otro)].whereType<String>().where((p) => p.isNotEmpty).toSet();
+
+  if (email != null && email.isNotEmpty) {
+    for (final pass in claves) {
+      try {
+        await c.auth.signInWithPassword(email: email, password: pass).timeout(const Duration(seconds: 10));
+        if (c.auth.currentSession != null) return c;
+      } catch (_) {}
+    }
+  }
+  throw Exception(
+    'Sin sesión en ${e.corto}. Abre Configuración, inicia sesión en ${e.corto} '
+    'y marca «recordar contraseña».',
+  );
+}
 
 /// Teléfono (Redmi Note 12 Pro: ~393×873 lógicos). La tablet de 11" no es compacta.
 bool esCompacto(BuildContext c) => MediaQuery.sizeOf(c).shortestSide < 600;
@@ -461,14 +489,15 @@ class _IconoEstadoTMState extends State<IconoEstadoTM> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final info = infoTM(widget.estado);
-    final color = info.$3.shade700;
+    final oscuro = widget.estado == 'activa' || widget.estado == 'en_curso' || widget.estado == 'completada';
+    final color = oscuro ? info.$3.shade900 : info.$3.shade700;
     late final IconData icono;
     switch (widget.estado) {
       case 'pendiente':
         icono = Iconos.reloj;
       case 'activa':
       case 'en_curso':
-        icono = Iconos.play;
+        icono = Iconos.sensores;
       case 'completada':
         icono = Iconos.check;
       case 'incidencia':
@@ -512,7 +541,6 @@ class ChipEntorno extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final e = ref.watch(entornoProvider);
-    final cloud = e == Entorno.cloud;
     final estado = ref.watch(estadoConexionProvider);
     final conectado = estado.maybeWhen(data: (v) => v.$1, orElse: () => false);
     final cargando = estado.isLoading;
@@ -521,12 +549,13 @@ class ChipEntorno extends ConsumerWidget {
         : conectado
         ? Virtus.exito
         : Virtus.error;
-    final etiqueta = cargando
-        ? 'Comprobando…'
-        : conectado
-        ? 'Conectado · ${e.corto}'
-        : 'Sin conexión · ${e.corto}';
-    final etiquetaCorta = cargando ? '…' : e.corto;
+    final etiqueta = ampliado
+        ? (cargando
+              ? 'Comprobando…'
+              : conectado
+              ? 'Conectado · ${e.corto}'
+              : 'Sin conexión · ${e.corto}')
+        : (cargando ? '…' : e.corto);
 
     Future<void> cambiar() async {
       final ok = await confirmar(
@@ -546,23 +575,18 @@ class ChipEntorno extends ConsumerWidget {
       }
     }
 
-    final compacto = esCompacto(context) && !ampliado;
     final hijo = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: ampliado ? 9 : 8,
-          height: ampliado ? 9 : 8,
+          width: 8,
+          height: 8,
           decoration: BoxDecoration(color: colorEstado, shape: BoxShape.circle),
         ),
-        SizedBox(width: ampliado ? 8 : 6),
-        if (!compacto) ...[
-          Icon(cloud ? Iconos.nube : Icons.dns_outlined, color: Colors.white, size: ampliado ? 18 : 16),
-          const SizedBox(width: 6),
-        ],
+        const SizedBox(width: 6),
         Text(
-          ampliado ? etiqueta : etiquetaCorta,
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: ampliado ? 13 : 12),
+          etiqueta,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
         ),
       ],
     );
@@ -607,7 +631,7 @@ class BotonDirecto extends StatelessWidget {
     icon: Stack(
       clipBehavior: Clip.none,
       children: [
-        const Icon(Icons.live_tv_outlined, color: Colors.white),
+        const Icon(Iconos.directo, color: Colors.white, size: VirtusIcono.cabecera),
         Positioned(
           right: -2,
           top: -2,
@@ -685,7 +709,7 @@ class ChipDia extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.calendar_today_outlined, size: k ? 16 : 18, color: Colors.white),
+                Icon(Iconos.calendario, size: VirtusIcono.chip + 2, color: Colors.white),
                 SizedBox(width: k ? 4 : 6),
                 Text(
                   etiqueta,
@@ -991,29 +1015,29 @@ typedef InfoEstado = (String, IconData, MaterialColor);
 
 /// Estado de la mesa, derivado de sus tandas.
 final estadosMesa = <String, InfoEstado>{
-  'preparada': ('Preparada', Icons.event_seat_outlined, Virtus.mcAccion),
-  'catando': ('Catando', Icons.play_circle_outline, Virtus.mcAdvertencia),
-  'finalizada': ('Finalizada', Icons.check_circle_outline, Virtus.mcExito),
+  'preparada': ('Preparada', Iconos.asiento, Virtus.mcAccion),
+  'catando': ('Catando', Iconos.directo, Virtus.mcExito),
+  'finalizada': ('Finalizada', Iconos.check, Virtus.mcMarino),
 };
 
 /// tandas.estado
 final estadosTanda = <String, InfoEstado>{
-  'pendiente': ('Pendiente', Icons.schedule_outlined, Virtus.mcAccion),
-  'abierta': ('Abierta', Icons.play_circle_outline, Virtus.mcAdvertencia),
-  'cerrada': ('Cerrada', Icons.lock_outline, Virtus.mcExito),
+  'pendiente': ('Pendiente', Iconos.reloj, Virtus.mcAccion),
+  'abierta': ('Abierta', Iconos.directo, Virtus.mcExito),
+  'cerrada': ('Cerrada', Iconos.candado, Virtus.mcMarino),
 };
-InfoEstado infoTanda(String e) => estadosTanda[e] ?? (e, Icons.help_outline, Virtus.mcNeutro);
+InfoEstado infoTanda(String e) => estadosTanda[e] ?? (e, Iconos.ayuda, Virtus.mcNeutro);
 
 /// tanda_muestras.estado — verde/rojo solo en positivo/negativo.
 final estadosTM = <String, InfoEstado>{
   'pendiente': ('Pendiente', Iconos.reloj, Virtus.mcAccion),
-  'activa': ('Activa', Iconos.play, Virtus.mcAdvertencia),
-  'en_curso': ('En curso', Iconos.play, Virtus.mcAdvertencia),
-  'completada': ('Completada', Iconos.check, Virtus.mcExito),
-  'incidencia': ('Incidencia', Iconos.incidencias, Virtus.mcError),
+  'activa': ('Activa', Iconos.sensores, Virtus.mcExito),
+  'en_curso': ('En curso', Iconos.sensores, Virtus.mcExito),
+  'completada': ('Completada', Iconos.check, Virtus.mcMarino),
+  'incidencia': ('Incidencia', Iconos.incidencias, Virtus.mcAdvertencia),
   'pospuesta': ('Pospuesta', Iconos.reloj, Virtus.mcNeutro),
 };
-InfoEstado infoTM(String e) => estadosTM[e] ?? (e, Icons.help_outline, Virtus.mcNeutro);
+InfoEstado infoTM(String e) => estadosTM[e] ?? (e, Iconos.ayuda, Virtus.mcNeutro);
 
 /// puntuaciones.estado — verde = positivo.
 final estadosNota = <String, InfoEstado>{

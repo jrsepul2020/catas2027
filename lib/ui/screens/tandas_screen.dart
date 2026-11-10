@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import '../../data/models.dart';
+import '../componentes_cataris.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'incidencias_screen.dart';
@@ -18,6 +19,7 @@ class TandasScreen extends ConsumerWidget {
     final tandas = ref.watch(tandasProvider);
     final mesas = ref.watch(mesaPorIdProvider);
     final k = esCompacto(context);
+    final esLocal = ref.watch(esLocalProvider);
     const peso = {'abierta': 0, 'pendiente': 1, 'cerrada': 2};
     final l = [...tandas]
       ..sort((a, b) {
@@ -26,6 +28,9 @@ class TandasScreen extends ConsumerWidget {
         final ma = mesas[a.mesaId]?.numero ?? 999, mb = mesas[b.mesaId]?.numero ?? 999;
         return ma != mb ? ma.compareTo(mb) : a.orden.compareTo(b.orden);
       });
+    final nAbiertas = l.where((t) => t.estado == 'abierta').length;
+    final diaId = ref.watch(diaIdProvider);
+    final dia = ref.watch(diasProvider).where((d) => d.id == diaId).firstOrNull;
 
     final problema = avisoCarga(
       ref,
@@ -38,18 +43,28 @@ class TandasScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: botonVolver(context),
         title: const Text('Tandas'),
-        actions: const [ChipDia(), ChipEntorno()],
+        actions: [if (!esLocal) const ChipDia(), const ChipEntorno()],
       ),
       body:
           problema ??
           Ancho(
             max: 900,
-            child: ListaLlena(
-              itemCount: l.length,
-              gap: k ? 8 : 12,
-              padding: EdgeInsets.all(k ? 10 : 14),
-              altoMinimo: k ? 110 : 130,
-              itemBuilder: (c, i) => _TarjetaTanda(t: l[i]),
+            child: Column(
+              children: [
+                CabeceraDiaLocal(
+                  fechaIso: dia?.fecha,
+                  detalle: '$nAbiertas tanda${nAbiertas == 1 ? '' : 's'} abierta${nAbiertas == 1 ? '' : 's'}',
+                ),
+                Expanded(
+                  child: ListaLlena(
+                    itemCount: l.length,
+                    gap: k ? 8 : 10,
+                    padding: EdgeInsets.fromLTRB(k ? 10 : 14, 0, k ? 10 : 14, k ? 10 : 14),
+                    altoMinimo: k ? 120 : 128,
+                    itemBuilder: (c, i) => _TarjetaTanda(t: l[i]),
+                  ),
+                ),
+              ],
             ),
           ),
     );
@@ -64,106 +79,23 @@ class _TarjetaTanda extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tms = ref.watch(muestrasDeTandaProvider(t.id));
     final hechas = tms.where((x) => x.estado == 'completada').length;
-    final incid = tms.where((x) => x.conIncidencia).length;
+    final incid = tms.where((x) => x.conIncidencia).isNotEmpty;
     final activa = tms.where((x) => x.estado == 'activa').firstOrNull;
     final muestras = ref.watch(muestraPorIdProvider);
     final mesa = ref.watch(mesaPorIdProvider)[t.mesaId];
     final cat = ref.watch(categoriaPorIdProvider)[t.categoriaId];
-    final repo = ref.read(repoProvider)!;
-    final k = esCompacto(context);
-    final cs = Theme.of(context).colorScheme;
-    final info = infoTanda(t.estado);
     final codigoActiva = activa == null ? null : muestras[activa.muestraId]?.codigo;
 
-    return Card(
-      color: t.estado == 'abierta' ? Paleta.amarilloPastel : null,
-      child: InkWell(
-        onTap: () => context.go('/tandas/${t.id}'),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: k ? 12 : 18, vertical: k ? 10 : 14),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: k ? 26 : 32,
-                backgroundColor: Color.alphaBlend(info.$3.shade400.withValues(alpha: 0.22), Colors.white),
-                child: Icon(info.$2, size: k ? 26 : 32, color: info.$3.shade800),
-              ),
-              SizedBox(width: k ? 12 : 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            t.nombre,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: k ? 18 : 22, fontWeight: FontWeight.w900, color: cs.onSurface),
-                          ),
-                        ),
-                        EtiquetaEstado(info),
-                      ],
-                    ),
-                    SizedBox(height: k ? 3 : 5),
-                    Text(
-                      [
-                        mesa?.nombre ?? 'Sin mesa',
-                        if (cat != null) cat.nombre,
-                        '$hechas/${tms.length} muestras',
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: k ? 14 : 17, fontWeight: FontWeight.w700, color: cs.onSurface),
-                    ),
-                    if (codigoActiva != null || incid > 0) ...[
-                      SizedBox(height: k ? 2 : 4),
-                      Text(
-                        [
-                          if (codigoActiva != null) 'Activa $codigoActiva',
-                          if (incid > 0) '$incid incidencia${incid > 1 ? 's' : ''}',
-                        ].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: k ? 14 : 16,
-                          fontWeight: FontWeight.w800,
-                          color: incid > 0 ? Paleta.rojo : Paleta.azulOscuro,
-                        ),
-                      ),
-                    ],
-                    if (tms.isNotEmpty) ...[
-                      SizedBox(height: k ? 6 : 8),
-                      LinearProgressIndicator(
-                        value: tms.isEmpty ? 0 : hechas / tms.length,
-                        minHeight: k ? 7 : 10,
-                        color: info.$3,
-                        backgroundColor: info.$3.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              SizedBox(width: k ? 6 : 10),
-              if (t.estado == 'pendiente')
-                IconButton.filled(
-                  tooltip: 'Abrir tanda',
-                  onPressed: () => ejecutar(context, () => repo.estadoTanda(t.id, 'abierta')),
-                  icon: const Icon(Icons.play_arrow),
-                )
-              else if (t.estado == 'abierta')
-                IconButton.filled(
-                  tooltip: 'Ver notas',
-                  onPressed: () => context.go('/puntuar/${t.id}'),
-                  icon: const Icon(Icons.grid_on),
-                ),
-            ],
-          ),
-        ),
-      ),
+    return TarjetaTandaVista(
+      numeroMesa: mesa?.numero,
+      numeroTanda: t.numero,
+      categoria: cat?.nombre,
+      codigoActiva: codigoActiva,
+      hechas: hechas,
+      total: tms.length,
+      conIncidencia: incid,
+      cerrada: t.estado == 'cerrada',
+      onTap: () => context.go('/tandas/${t.id}'),
     );
   }
 }

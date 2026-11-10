@@ -6,7 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/backend.dart';
 import '../../core/errores.dart';
 import '../../core/providers.dart';
+import '../../data/auditoria.dart';
 import '../../sync/sync_service.dart';
+import '../componentes_cataris.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -166,6 +168,70 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 : (res.cuadre == 'CUADRA' ? 'Subida OK · CUADRA' : 'Subida con diferencias de cuadre'))
           : 'Terminado con ${res.errores.length} errores',
       error: res.errores.isNotEmpty || (res.cuadre != null && res.cuadre != 'CUADRA'),
+    );
+
+    // Informativa: nunca bloquea el flujo de sync.
+    if (res.auditoria != null) {
+      ref.read(ultimaAuditoriaProvider.notifier).guardar(res.auditoria);
+      await _mostrarAuditoria(res.auditoria!);
+    }
+  }
+
+  Future<void> _mostrarAuditoria(ResultadoAuditoria a) async {
+    if (!mounted) return;
+    final hora = formatearHoraAuditoria(a.cuando);
+    final mirar = a.mirar;
+    final cuenta = a.cuenta;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(a.todoCorrecto ? 'Auditoría · Todo correcto' : 'Auditoría del día'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Comprobado a las $hora. Solo informa: no impide seguir ni subir.',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Paleta.texto),
+                ),
+                if (a.todoCorrecto) ...[
+                  const SizedBox(height: 12),
+                  const Text('No hay hallazgos en las revisiones del día.', style: TextStyle(fontSize: 16)),
+                ],
+                if (mirar.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'Hay que mirarlo',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.red.shade800),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final h in mirar)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text('· ${h.texto}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    ),
+                ],
+                if (cuenta.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Para tener en cuenta',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.amber.shade900),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final h in cuenta)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text('· ${h.texto}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('Seguir'))],
+      ),
     );
   }
 

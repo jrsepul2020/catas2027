@@ -16,6 +16,19 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
   String _q = '';
   int? _categoria;
 
+  /// null = todas · 'sin_tanda' · o un estado de tanda_muestras.
+  String? _estado;
+
+  static const _ordenEstados = [
+    'activa',
+    'en_curso',
+    'pendiente',
+    'completada',
+    'incidencia',
+    'pospuesta',
+    'sin_tanda',
+  ];
+
   @override
   Widget build(BuildContext context) {
     final todas = ref.watch(muestrasProvider);
@@ -24,8 +37,26 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
     final tandas = ref.watch(tandaPorIdProvider);
     final mesas = ref.watch(mesaPorIdProvider);
     final q = _q.toLowerCase();
+
+    // Estados que realmente aparecen (más «sin tanda»).
+    final cuenta = <String, int>{};
+    for (final m in todas) {
+      if (_categoria != null && m.categoriaId != _categoria) continue;
+      final clave = enTanda[m.id]?.estado ?? 'sin_tanda';
+      cuenta[clave] = (cuenta[clave] ?? 0) + 1;
+    }
+    final estadosPresentes = [
+      for (final e in _ordenEstados)
+        if ((cuenta[e] ?? 0) > 0) e,
+      for (final e in cuenta.keys)
+        if (!_ordenEstados.contains(e)) e,
+    ];
+    final estadoFiltro = (_estado != null && estadosPresentes.contains(_estado)) ? _estado : null;
+
     final l = todas.where((m) {
       if (_categoria != null && m.categoriaId != _categoria) return false;
+      final clave = enTanda[m.id]?.estado ?? 'sin_tanda';
+      if (estadoFiltro != null && clave != estadoFiltro) return false;
       if (q.isEmpty) return true;
       return m.codigo.toLowerCase().contains(q) || (m.codigoTexto?.toLowerCase().contains(q) ?? false);
     }).toList();
@@ -33,6 +64,8 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
 
     final k = esCompacto(context);
     final cs = Theme.of(context).colorScheme;
+
+    String etiquetaEstado(String e) => e == 'sin_tanda' ? 'Sin tanda' : (infoTM(e).$1);
 
     return Scaffold(
       appBar: AppBar(
@@ -55,7 +88,7 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
       body: Column(
         children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(10, k ? 4 : 10, 10, k ? 6 : 10),
+            padding: EdgeInsets.fromLTRB(10, k ? 4 : 10, 10, k ? 4 : 8),
             child: SearchBar(
               hintText: _categoria == null ? 'Código ciego o de texto…' : 'Buscar en ${catNombre[_categoria]}',
               leading: const Icon(Icons.search),
@@ -65,6 +98,36 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
               constraints: BoxConstraints(minHeight: k ? 44 : 56),
               textStyle: WidgetStatePropertyAll(TextStyle(fontSize: k ? 16 : 19, color: cs.onSurface)),
               onChanged: (v) => setState(() => _q = v),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                FilterChip(
+                  visualDensity: VisualDensity.compact,
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  label: Text(
+                    'Todas (${todas.where((m) => _categoria == null || m.categoriaId == _categoria).length})',
+                    style: TextStyle(fontSize: k ? 12 : 13, fontWeight: FontWeight.w700),
+                  ),
+                  selected: estadoFiltro == null,
+                  onSelected: (_) => setState(() => _estado = null),
+                ),
+                for (final e in estadosPresentes)
+                  FilterChip(
+                    visualDensity: VisualDensity.compact,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    label: Text(
+                      '${etiquetaEstado(e)} (${cuenta[e]})',
+                      style: TextStyle(fontSize: k ? 12 : 13, fontWeight: FontWeight.w700),
+                    ),
+                    selected: estadoFiltro == e,
+                    onSelected: (_) => setState(() => _estado = e),
+                  ),
+              ],
             ),
           ),
           Expanded(
@@ -83,11 +146,14 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
                 final t = tandas[tm?.tandaId];
                 final info = tm == null ? null : infoTM(tm.estado);
                 final color = !m.activa ? Colors.grey : (info?.$3 ?? Colors.blue);
+                final estado = tm?.estado;
+                final oscuro = estado == 'activa' || estado == 'en_curso' || estado == 'completada';
+                final colorTexto = oscuro ? color.shade900 : cs.onSurfaceVariant;
                 return Material(
                   color: tm == null ? Colors.white : color.shade50,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: color.shade200),
+                    side: BorderSide(color: oscuro ? color.shade700 : color.shade200, width: oscuro ? 1.4 : 1),
                   ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(10),
@@ -112,21 +178,25 @@ class _MuestrasScreenState extends ConsumerState<MuestrasScreen> {
                             style: TextStyle(
                               fontSize: k ? 17 : 21,
                               fontWeight: FontWeight.w900,
-                              color: cs.onSurface,
+                              color: oscuro ? color.shade900 : cs.onSurface,
                               decoration: m.activa ? null : TextDecoration.lineThrough,
                             ),
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              if (info != null) Icon(info.$2, size: k ? 11 : 14, color: color.shade700),
-                              if (info != null) const SizedBox(width: 2),
+                              if (estado != null) IconoEstadoTM(estado: estado, tamano: k ? 15 : 18),
+                              if (estado != null) const SizedBox(width: 3),
                               Flexible(
                                 child: Text(
                                   t == null ? 'sin tanda' : 'T${t.numero}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: k ? 11 : 13, color: cs.onSurfaceVariant),
+                                  style: TextStyle(
+                                    fontSize: k ? 11 : 13,
+                                    fontWeight: oscuro ? FontWeight.w800 : FontWeight.w600,
+                                    color: colorTexto,
+                                  ),
                                 ),
                               ),
                             ],

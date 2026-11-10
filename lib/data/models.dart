@@ -85,6 +85,9 @@ class Catador {
   String? get pais => _sn(r['pais_codigo']) ?? _sn(r['pais']);
   bool get presente => r['presente'] ?? true;
 
+  /// Si false, sus notas no cuentan en la media (recordatorio de auditoría).
+  bool get puntosActivos => r['puntos_activos'] ?? true;
+
   /// "activo" lo gestiona la app de tablets (catador conectado).
   bool get conectado => r['activo'] ?? false;
 }

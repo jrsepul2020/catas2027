@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../../data/models.dart';
+import '../theme.dart';
 import '../widgets.dart';
 import 'catas_screen.dart';
 
@@ -40,6 +41,12 @@ class _MedallasScreenState extends ConsumerState<MedallasScreen> {
         title: const Text('Medallero Provisional'),
         leading: botonVolver(context),
         actions: [
+          if (concurso != null)
+            IconButton(
+              tooltip: 'Cambiar umbrales de medalla',
+              icon: const Icon(Icons.tune),
+              onPressed: () => editarUmbralesMedallas(context, ref, concurso),
+            ),
           IconButton(
             tooltip: 'Copiar resultados (Excel)',
             icon: const Icon(Icons.copy_all),
@@ -126,11 +133,32 @@ class _MedallasScreenState extends ConsumerState<MedallasScreen> {
             ),
             if (concurso != null)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Gran Oro ≥ ${numCorto(concurso.granOro)} · Oro ≥ ${numCorto(concurso.oro)} · '
-                  'Plata ≥ ${numCorto(concurso.plata)} · códigos < 1000 no premian',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                child: Material(
+                  color: Virtus.accionSuave,
+                  borderRadius: BorderRadius.circular(Virtus.radioSm),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(Virtus.radioSm),
+                    onTap: () => editarUmbralesMedallas(context, ref, concurso),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.tune, color: Virtus.marino, size: 22),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Gran Oro ≥ ${numCorto(concurso.granOro)} · Oro ≥ ${numCorto(concurso.oro)} · '
+                              'Plata ≥ ${numCorto(concurso.plata)}',
+                              style: VirtusTexto.titulo(size: esCompacto(context) ? 13 : 14),
+                            ),
+                          ),
+                          Text('Editar', style: VirtusTexto.titulo(size: 13, color: Virtus.accion)),
+                          const Icon(Icons.chevron_right, color: Virtus.accion),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             Expanded(

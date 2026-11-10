@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/backend.dart';
 import '../../core/providers.dart';
 import '../../data/models.dart';
+import '../theme.dart';
 import '../widgets.dart';
 
 /// Elección de concurso (solo aparece si hay varios).
@@ -82,6 +84,75 @@ class CatasScreen extends ConsumerWidget {
 
 String numCorto(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : '$v'.replaceAll('.', ',');
 
+double? _numCampo(TextEditingController x) => double.tryParse(x.text.replaceAll(',', '.'));
+
+/// Guarda umbrales Gran Oro / Oro / Plata en CLOUD y LOCAL (mismo id de concurso).
+Future<List<String>> guardarUmbralesMedallas(
+  WidgetRef ref,
+  int concursoId, {
+  required double granOro,
+  required double oro,
+  required double plata,
+}) async {
+  if (!(granOro >= oro && oro >= plata && plata > 0 && granOro <= 100)) {
+    throw Exception('Los umbrales deben cumplir Gran Oro ≥ Oro ≥ Plata (y entre 0 y 100).');
+  }
+  final datos = {'gran_oro': granOro, 'oro': oro, 'plata': plata};
+  final avisos = <String>[];
+  var ok = 0;
+  for (final e in Entorno.values) {
+    try {
+      final cli = await clienteAutenticado(ref, e);
+      await cli.from('concursos').update(datos).eq('id', concursoId);
+      avisos.add('${e.corto} actualizado');
+      ok++;
+    } catch (err) {
+      avisos.add('${e.corto}: ${'$err'.replaceFirst(RegExp(r'^Exception:\s*'), '')}');
+    }
+  }
+  if (ok == 0) throw Exception(avisos.join('\n'));
+  return avisos;
+}
+
+/// Solo umbrales de medalla (pensado para Medallero). Escribe en CLOUD y LOCAL.
+Future<void> editarUmbralesMedallas(BuildContext context, WidgetRef ref, Concurso c) async {
+  final go = TextEditingController(text: numCorto(c.granOro));
+  final o = TextEditingController(text: numCorto(c.oro));
+  final p = TextEditingController(text: numCorto(c.plata));
+
+  await hojaFormulario(
+    context,
+    titulo: 'Umbrales de medalla',
+    campos: [
+      Text(
+        'Se guardan a la vez en CLOUD y LOCAL para que coincidan.\n'
+        'Gran Oro ≥ Oro ≥ Plata. Códigos ciegos < 1000 no premian.',
+        style: VirtusTexto.tenue(size: 13),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(child: Campo(go, 'Gran Oro ≥', numero: true, autofocus: true)),
+          const SizedBox(width: 10),
+          Expanded(child: Campo(o, 'Oro ≥', numero: true)),
+          const SizedBox(width: 10),
+          Expanded(child: Campo(p, 'Plata ≥', numero: true)),
+        ],
+      ),
+    ],
+    guardar: () async {
+      final avisos = await guardarUmbralesMedallas(
+        ref,
+        c.id,
+        granOro: _numCampo(go) ?? 92,
+        oro: _numCampo(o) ?? 85,
+        plata: _numCampo(p) ?? 82,
+      );
+      if (context.mounted) aviso(context, avisos.join(' · '));
+    },
+  );
+}
+
 /// Formulario de concurso existente: nombre, fechas, umbrales de medalla.
 Future<void> editarConcurso(BuildContext context, WidgetRef ref, Concurso c) async {
   final repo = ref.read(repoProvider);
@@ -94,7 +165,6 @@ Future<void> editarConcurso(BuildContext context, WidgetRef ref, Concurso c) asy
   final p = TextEditingController(text: numCorto(c.plata));
   final porMesa = TextEditingController(text: '${c.catadoresPorMesa}');
   var activo = c.activo;
-  double? n(TextEditingController x) => double.tryParse(x.text.replaceAll(',', '.'));
   String? t(TextEditingController x) => x.text.trim().isEmpty ? null : x.text.trim();
 
   await hojaFormulario(
@@ -109,6 +179,8 @@ Future<void> editarConcurso(BuildContext context, WidgetRef ref, Concurso c) asy
           Expanded(child: Campo(fin, 'Fin (AAAA-MM-DD)')),
         ],
       ),
+      Text('Umbrales (se sincronizan en CLOUD y LOCAL):', style: VirtusTexto.tenue(size: 12)),
+      const SizedBox(height: 6),
       Row(
         children: [
           Expanded(child: Campo(go, 'Gran Oro ≥', numero: true)),
@@ -129,16 +201,20 @@ Future<void> editarConcurso(BuildContext context, WidgetRef ref, Concurso c) asy
       ),
     ],
     guardar: () async {
+      final granOro = _numCampo(go) ?? 92;
+      final oro = _numCampo(o) ?? 85;
+      final plata = _numCampo(p) ?? 82;
+      // Resto de campos solo en el entorno activo.
       await repo.actualizar('concursos', c.id, {
         'nombre': nombre.text.trim(),
         'fecha_inicio': t(ini),
         'fecha_fin': t(fin),
-        'gran_oro': n(go) ?? 92,
-        'oro': n(o) ?? 85,
-        'plata': n(p) ?? 82,
         'catadores_por_mesa': int.tryParse(porMesa.text) ?? 5,
         'activo': activo,
       });
+      // Umbrales en ambos para que el medallero coincida.
+      final avisos = await guardarUmbralesMedallas(ref, c.id, granOro: granOro, oro: oro, plata: plata);
+      if (context.mounted) aviso(context, avisos.join(' · '));
     },
   );
 }

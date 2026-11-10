@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/auditoria.dart';
 import '../data/models.dart';
 import 'validacion_dia.dart';
 
@@ -27,6 +28,9 @@ class ResultadoSync {
   final List<String> problemasValidacion = [];
   String? cuadre;
   DateTime? horaFin;
+
+  /// Auditoría informativa (nunca bloquea bajar/subir).
+  ResultadoAuditoria? auditoria;
   bool get ok => errores.isEmpty && problemasValidacion.isEmpty;
 }
 
@@ -239,8 +243,30 @@ class SyncService {
       res.avisos.add('sync_estado: ${_msg(e)}');
     }
 
+    yield* _auditarLocal(res, motivo: 'tras bajar');
+
     res.horaFin = DateTime.now();
     yield ProgresoSync('fin', 'Bajada terminada a las ${_hora(res.horaFin!)}');
+  }
+
+  /// Auditoría SQL del LOCAL: informa, nunca bloquea ni lanza.
+  Stream<ProgresoSync> _auditarLocal(ResultadoSync res, {required String motivo}) async* {
+    yield ProgresoSync('auditoria', 'Auditoría $motivo…');
+    try {
+      final cuando = DateTime.now();
+      final hallazgos = await comprobarSqlLocal(local);
+      res.auditoria = ResultadoAuditoria(cuando: cuando, hallazgos: hallazgos);
+      if (hallazgos.isEmpty) {
+        yield ProgresoSync('auditoria', 'Todo correcto (${formatearHoraAuditoria(cuando)})');
+      } else {
+        final nMirar = hallazgos.where((h) => h.hayQueMirarlo).length;
+        final nCuenta = hallazgos.length - nMirar;
+        yield ProgresoSync('auditoria', 'Auditoría: $nMirar a mirar · $nCuenta a tener en cuenta');
+      }
+    } catch (e) {
+      res.avisos.add('Auditoría (no bloquea): ${_msg(e)}');
+      yield ProgresoSync('auditoria', 'Auditoría omitida (no bloquea)');
+    }
   }
 
   Stream<ProgresoSync> _cargarDiaEnLocal(int diaId, ResultadoSync res) async* {
@@ -355,6 +381,9 @@ class SyncService {
       res.errores.add('LOCAL no tiene día bajado (sync_estado.dia_id vacío)');
       return;
     }
+
+    // Informativa: nunca impide subir.
+    yield* _auditarLocal(res, motivo: 'antes de subir');
 
     yield ProgresoSync('puntuaciones', 'Leyendo notas LOCAL…');
     final notas = await _leer(local, 'puntuaciones');

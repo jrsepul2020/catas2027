@@ -221,20 +221,31 @@ void main() {
       'Incidencias',
       'Catadores',
       'Muestras',
-      'Medallero Provisional',
+      'Medallero',
       'Auditoría',
     ]) {
       final finder = find.text(t);
-      await tester.ensureVisible(finder);
+      await tester.ensureVisible(finder.first);
       await tester.pump();
-      expect(finder.hitTestable(), findsOneWidget, reason: t);
+      expect(finder.hitTestable(), findsAtLeastNWidgets(1), reason: t);
     }
     expect(find.text('Mesas catando'), findsOneWidget);
-    expect(find.text('Alertas'), findsOneWidget);
+    expect(find.text('Incidencias'), findsWidgets);
     expect(find.text('Progreso del día'), findsOneWidget);
-    expect(find.text('Datos DEMO'), findsOneWidget);
-    expect(find.text('Crear DEMO'), findsOneWidget);
-    expect(find.text('Borrar todo'), findsOneWidget);
+    expect(find.text('Datos DEMO'), findsNothing);
+    expect(find.text('Crear DEMO'), findsNothing);
+    expect(find.text('Borrar todo'), findsNothing);
+  });
+
+  testWidgets('inicio cabe en 360 sin overflow', (tester) async {
+    await montar(tester, const InicioScreen(), const Size(360, 800));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tandas cabe en 360 sin overflow', (tester) async {
+    await montar(tester, const TandasScreen(), const Size(360, 800));
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Tanda 901'), findsWidgets);
   });
 
   testWidgets('incidencias: lista la muestra con incidencia abierta', (tester) async {

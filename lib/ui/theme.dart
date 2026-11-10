@@ -2,39 +2,46 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Sistema de diseño CATARIS Gestión 2027 (FASE 3 · filosofía maqueta VIRTUS).
+import 'iconos.dart';
+
+/// Sistema de diseño CATARIS Gestión 2027.
 ///
-/// Reglas:
-/// - **Importante**: tipografía grande y negrita ([VirtusTexto.importante]).
-/// - **Secundario**: peso fino y color tenue ([VirtusTexto.tenue]).
-/// - **Un color de marca** (marino/azul) + pasteles/degradados para chrome y botones.
-/// - **Verde / rojo** solo para estados positivos / negativos (avisos).
-/// - Bordes visibles en tarjetas y botones; sin sombras pesadas.
-/// - Separadores: raya fina gris claro ([SeparadorFino] en widgets).
+/// Identidad: granate de marca, verde solo «en marcha», ámbar solo avisos.
+/// Fondo cálido, tarjetas blancas con borde suave. Sin degradados ni sombras fuertes.
 abstract final class Virtus {
-  // —— Marca (un solo color + tonos) ——
-  static const marino = Color(0xFF1A3158);
-  static const accion = Color(0xFF2563EB);
-  static const fondo = Color(0xFFF4F7F9);
+  // —— Marca ——
+  static const marca = Color(0xFF970119);
+  static const marcaOscura = Color(0xFF6B0A18);
+  static const fondo = Color(0xFFF6F2EE);
   static const superficie = Color(0xFFFFFFFF);
-  static const texto = Color(0xFF172033);
-  static const textoSecundario = Color(0xFF7B8798);
-  static const textoTenue = Color(0xFF9AA3B2);
-  static const borde = Color(0xFFE3E8EF);
-  static const separador = Color(0xFFE8ECF1);
+  static const texto = Color(0xFF1E1B19);
+  static const textoSecundario = Color(0xFF6B655F);
+  static const textoTenue = Color(0xFF8A837C);
+  static const borde = Color(0xFFE6DED8);
+  static const separador = Color(0xFFE6DED8);
 
   // —— Estados (únicos colores fuera de la marca) ——
-  static const exito = Color(0xFF22A45D);
-  static const advertencia = Color(0xFFD97706);
-  static const error = Color(0xFFDC3545);
+  /// Verde: solo «en marcha» (conectado, muestra activa, todo correcto).
+  static const enMarcha = Color(0xFF1F7A4D);
+  static const advertencia = Color(0xFFB4621A);
+  static const error = Color(0xFFB42318);
 
-  // —— Pasteles de marca / estado ——
-  static const accionSuave = Color(0xFFEFF5FF);
-  static const marinoSuave = Color(0xFFE8EEF5);
-  static const exitoSuave = Color(0xFFECF9F1);
-  static const advertenciaSuave = Color(0xFFFFF8EB);
-  static const errorSuave = Color(0xFFFDECEC);
-  static const neutroSuave = Color(0xFFF1F4F8);
+  // Alias de compatibilidad con código anterior.
+  static const marino = marcaOscura;
+  static const accion = marca;
+  static const exito = enMarcha;
+
+  // —— Suaves ——
+  static const marcaSuave = Color(0xFFF8E9EC);
+  static const enMarchaSuave = Color(0xFFE8F4EE);
+  static const advertenciaSuave = Color(0xFFFBF0E6);
+  static const errorSuave = Color(0xFFF8E9E8);
+  static const neutroSuave = Color(0xFFF1EEEA);
+
+  // Alias legacy.
+  static const accionSuave = marcaSuave;
+  static const marinoSuave = marcaSuave;
+  static const exitoSuave = enMarchaSuave;
 
   static const radio = 12.0;
   static const radioSm = 8.0;
@@ -44,7 +51,7 @@ abstract final class Virtus {
   /// MaterialColor semántico (compat. con chips/estados que usan shade50…900).
   static MaterialColor material(Color base) {
     Color mezclar(double t) => Color.lerp(Colors.white, base, t)!;
-    Color oscurecer(double t) => Color.lerp(base, const Color(0xFF0F172A), t)!;
+    Color oscurecer(double t) => Color.lerp(base, const Color(0xFF1E1B19), t)!;
     return MaterialColor(base.toARGB32(), {
       50: mezclar(0.08),
       100: mezclar(0.14),
@@ -59,50 +66,94 @@ abstract final class Virtus {
     });
   }
 
-  static final mcAccion = material(accion);
+  static final mcAccion = material(marca);
   static final mcAdvertencia = material(advertencia);
-  static final mcExito = material(exito);
+  static final mcExito = material(enMarcha);
   static final mcError = material(error);
   static final mcNeutro = material(textoSecundario);
-  static final mcMarino = material(marino);
+  static final mcMarino = material(marcaOscura);
 }
 
-/// Tipografía de jerarquía (maqueta): importante vs tenue.
+/// Tipografía de jerarquía: Inter (google_fonts) + fallback de sistema.
+/// Los números usan siempre [FontFeature.tabularFigures].
 abstract final class VirtusTexto {
+  static const _fallback = <String>['Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'];
+  static const _tabulares = <FontFeature>[FontFeature.tabularFigures()];
+
+  static TextStyle _inter({
+    required double size,
+    required FontWeight weight,
+    Color color = Virtus.texto,
+    double? height,
+    double? letterSpacing,
+    bool tabular = false,
+  }) {
+    final base = TextStyle(
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+      fontFamilyFallback: _fallback,
+      fontFeatures: tabular ? _tabulares : null,
+    );
+    try {
+      return GoogleFonts.inter(
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+        fontFeatures: tabular ? _tabulares : null,
+      ).copyWith(fontFamilyFallback: _fallback);
+    } catch (_) {
+      return base;
+    }
+  }
+
   static TextStyle importante({double size = 20, Color color = Virtus.texto}) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.3, height: 1.15);
+      _inter(size: size, weight: FontWeight.w800, color: color, letterSpacing: -0.3, height: 1.15);
 
   static TextStyle titulo({double size = 16, Color color = Virtus.texto}) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: FontWeight.w700, color: color, letterSpacing: -0.2, height: 1.2);
+      _inter(size: size, weight: FontWeight.w700, color: color, letterSpacing: -0.2, height: 1.2);
 
   static TextStyle cuerpo({double size = 14, Color color = Virtus.texto}) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: FontWeight.w400, color: color, height: 1.35);
+      _inter(size: size, weight: FontWeight.w400, color: color, height: 1.35);
 
   static TextStyle tenue({double size = 13, Color color = Virtus.textoSecundario}) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: FontWeight.w300, color: color, height: 1.3);
+      _inter(size: size, weight: FontWeight.w400, color: color, height: 1.3);
+
+  /// Contadores, progreso, códigos de muestra, puntuaciones.
+  static TextStyle numero({double size = 22, Color color = Virtus.texto, FontWeight weight = FontWeight.w800}) =>
+      _inter(size: size, weight: weight, color: color, height: 1.1, letterSpacing: -0.4, tabular: true);
 }
 
 /// Alias de compatibilidad con el código existente.
 abstract final class Paleta {
-  static const azul = Virtus.accion;
-  static const azulOscuro = Virtus.marino;
-  static const azulPastel = Virtus.accionSuave;
+  static const azul = Virtus.marca;
+  static const azulOscuro = Virtus.marcaOscura;
+  static const azulPastel = Virtus.marcaSuave;
   static const rojo = Virtus.error;
-  static const rojoOscuro = Color(0xFF991B1B);
+  static const rojoOscuro = Color(0xFF7A160F);
   static const rojoPastel = Virtus.errorSuave;
   static const amarillo = Virtus.advertencia;
-  static const amarilloOscuro = Color(0xFF92400E);
+  static const amarilloOscuro = Color(0xFF8A4A14);
   static const amarilloPastel = Virtus.advertenciaSuave;
-  static const lila = Virtus.exito;
-  static const lilaOscuro = Color(0xFF14532D);
-  static const lilaPastel = Virtus.exitoSuave;
+  static const lila = Virtus.enMarcha;
+  static const lilaOscuro = Color(0xFF145A38);
+  static const lilaPastel = Virtus.enMarchaSuave;
   static const fondo = Virtus.fondo;
   static const texto = Virtus.texto;
   static const textoSuave = Virtus.textoSecundario;
 }
 
 TextTheme _textoInter(ColorScheme cs, {required bool compacto}) {
-  final base = GoogleFonts.interTextTheme().apply(bodyColor: cs.onSurface, displayColor: cs.onSurface);
+  TextTheme base;
+  try {
+    base = GoogleFonts.interTextTheme().apply(bodyColor: cs.onSurface, displayColor: cs.onSurface);
+  } catch (_) {
+    base = ThemeData(useMaterial3: true).textTheme.apply(bodyColor: cs.onSurface, displayColor: cs.onSurface);
+  }
   final escala = compacto ? 0.95 : 1.0;
   TextStyle escalar(TextStyle? s, {FontWeight? w, double? size, Color? color}) {
     final t = s ?? const TextStyle();
@@ -112,6 +163,8 @@ TextTheme _textoInter(ColorScheme cs, {required bool compacto}) {
       letterSpacing: t.letterSpacing ?? -0.1,
       height: t.height ?? 1.25,
       color: color ?? t.color ?? cs.onSurface,
+      fontFamilyFallback: VirtusTexto._fallback,
+      fontFeatures: VirtusTexto._tabulares,
     );
   }
 
@@ -127,10 +180,10 @@ TextTheme _textoInter(ColorScheme cs, {required bool compacto}) {
     titleSmall: escalar(base.titleSmall, w: FontWeight.w600, size: 14),
     bodyLarge: escalar(base.bodyLarge, w: FontWeight.w400, size: 16),
     bodyMedium: escalar(base.bodyMedium, w: FontWeight.w400, size: 14),
-    bodySmall: escalar(base.bodySmall, w: FontWeight.w300, size: 12, color: cs.onSurfaceVariant),
+    bodySmall: escalar(base.bodySmall, w: FontWeight.w400, size: 12, color: cs.onSurfaceVariant),
     labelLarge: escalar(base.labelLarge, w: FontWeight.w600, size: 14),
     labelMedium: escalar(base.labelMedium, w: FontWeight.w500, size: 12),
-    labelSmall: escalar(base.labelSmall, w: FontWeight.w300, size: 11, color: Virtus.textoTenue),
+    labelSmall: escalar(base.labelSmall, w: FontWeight.w400, size: 11, color: Virtus.textoTenue),
   );
 }
 
@@ -138,51 +191,57 @@ TextTheme _textoInter(ColorScheme cs, {required bool compacto}) {
 ThemeData tema({bool compacto = false}) {
   final cs = const ColorScheme(
     brightness: Brightness.light,
-    primary: Virtus.accion,
+    primary: Virtus.marca,
     onPrimary: Colors.white,
-    primaryContainer: Virtus.accionSuave,
-    onPrimaryContainer: Virtus.marino,
-    secondary: Virtus.marino,
+    primaryContainer: Virtus.marcaSuave,
+    onPrimaryContainer: Virtus.marcaOscura,
+    secondary: Virtus.marcaOscura,
     onSecondary: Colors.white,
-    secondaryContainer: Virtus.marinoSuave,
-    onSecondaryContainer: Virtus.marino,
-    tertiary: Virtus.exito,
+    secondaryContainer: Virtus.marcaSuave,
+    onSecondaryContainer: Virtus.marcaOscura,
+    tertiary: Virtus.enMarcha,
     onTertiary: Colors.white,
-    tertiaryContainer: Virtus.exitoSuave,
-    onTertiaryContainer: Color(0xFF14532D),
+    tertiaryContainer: Virtus.enMarchaSuave,
+    onTertiaryContainer: Color(0xFF145A38),
     error: Virtus.error,
     onError: Colors.white,
     errorContainer: Virtus.errorSuave,
-    onErrorContainer: Color(0xFF991B1B),
+    onErrorContainer: Color(0xFF7A160F),
     surface: Virtus.fondo,
     onSurface: Virtus.texto,
     onSurfaceVariant: Virtus.textoSecundario,
-    outline: Color(0xFF94A3B8),
+    outline: Color(0xFF9A938C),
     outlineVariant: Virtus.borde,
     surfaceContainerLowest: Virtus.superficie,
-    surfaceContainerLow: Color(0xFFF8FAFC),
-    surfaceContainer: Color(0xFFF1F5F9),
-    surfaceContainerHigh: Color(0xFFE2E8F0),
-    surfaceContainerHighest: Color(0xFFCBD5E1),
-    inverseSurface: Virtus.marino,
+    surfaceContainerLow: Color(0xFFFBF9F7),
+    surfaceContainer: Color(0xFFF3EEE9),
+    surfaceContainerHigh: Color(0xFFEDE7E1),
+    surfaceContainerHighest: Color(0xFFE6DED8),
+    inverseSurface: Virtus.marcaOscura,
     onInverseSurface: Colors.white,
-    inversePrimary: Color(0xFF93C5FD),
-    shadow: Color(0xFF0F172A),
-    scrim: Color(0xFF0F172A),
+    inversePrimary: Color(0xFFE8A0AB),
+    shadow: Color(0xFF1E1B19),
+    scrim: Color(0xFF1E1B19),
   );
 
   final botonH = compacto ? 48.0 : 52.0;
-  final icono = compacto ? 22.0 : 24.0;
   final fBoton = compacto ? 15.0 : 16.0;
   final rad = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(Virtus.radio),
     side: const BorderSide(color: Virtus.borde, width: Virtus.grosorBorde),
   );
-  final txtBoton = GoogleFonts.inter(fontSize: fBoton, fontWeight: FontWeight.w600);
+  final txtBoton = VirtusTexto.titulo(size: fBoton);
   final textTheme = _textoInter(cs, compacto: compacto);
+  String? familiaInter;
+  try {
+    familiaInter = GoogleFonts.inter().fontFamily;
+  } catch (_) {
+    familiaInter = null;
+  }
 
   return ThemeData(
     useMaterial3: true,
+    fontFamily: familiaInter,
     colorScheme: cs,
     textTheme: textTheme,
     primaryTextTheme: textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
@@ -204,25 +263,20 @@ ThemeData tema({bool compacto = false}) {
       elevation: 0,
       scrolledUnderElevation: 0,
       toolbarHeight: compacto ? 56 : 64,
-      backgroundColor: Virtus.marino,
+      backgroundColor: Virtus.marcaOscura,
       foregroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
-      titleTextStyle: GoogleFonts.inter(
-        fontSize: compacto ? 18 : 20,
-        fontWeight: FontWeight.w800,
-        color: Colors.white,
-        letterSpacing: -0.2,
-      ),
-      iconTheme: IconThemeData(color: Colors.white, size: compacto ? 22 : 24),
-      actionsIconTheme: IconThemeData(color: Colors.white, size: compacto ? 22 : 24),
+      titleTextStyle: VirtusTexto.importante(size: compacto ? 18 : 20, color: Colors.white),
+      iconTheme: const IconThemeData(color: Colors.white, size: VirtusIcono.cabecera),
+      actionsIconTheme: const IconThemeData(color: Colors.white, size: VirtusIcono.cabecera),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: Size(48, botonH),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Virtus.radio)),
         textStyle: txtBoton,
-        iconSize: icono,
-        backgroundColor: Virtus.accion,
+        iconSize: VirtusIcono.medio,
+        backgroundColor: Virtus.marca,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -232,10 +286,10 @@ ThemeData tema({bool compacto = false}) {
         minimumSize: Size(48, botonH),
         shape: rad,
         textStyle: txtBoton,
-        iconSize: icono,
+        iconSize: VirtusIcono.medio,
         elevation: 0,
         backgroundColor: Virtus.superficie,
-        foregroundColor: Virtus.marino,
+        foregroundColor: Virtus.marcaOscura,
         shadowColor: Colors.transparent,
       ),
     ),
@@ -244,62 +298,61 @@ ThemeData tema({bool compacto = false}) {
         minimumSize: Size(48, botonH),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Virtus.radio)),
         textStyle: txtBoton,
-        iconSize: icono,
-        foregroundColor: Virtus.marino,
+        iconSize: VirtusIcono.medio,
+        foregroundColor: Virtus.marcaOscura,
         backgroundColor: Virtus.superficie,
         side: const BorderSide(color: Virtus.borde, width: Virtus.grosorBorde),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(minimumSize: const Size(48, 48), textStyle: txtBoton, foregroundColor: Virtus.accion),
+      style: TextButton.styleFrom(minimumSize: const Size(48, 48), textStyle: txtBoton, foregroundColor: Virtus.marca),
     ),
     iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(minimumSize: const Size(48, 48), iconSize: compacto ? 22 : 24, foregroundColor: null),
+      style: IconButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        iconSize: VirtusIcono.cabecera,
+        foregroundColor: null,
+      ),
     ),
-    iconTheme: IconThemeData(size: compacto ? 22 : 24, color: Virtus.marino),
-    primaryIconTheme: const IconThemeData(size: 24, color: Colors.white),
+    iconTheme: const IconThemeData(size: VirtusIcono.medio, color: Virtus.marcaOscura),
+    primaryIconTheme: const IconThemeData(size: VirtusIcono.cabecera, color: Colors.white),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: Virtus.accion,
+      backgroundColor: Virtus.marca,
       foregroundColor: Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Virtus.radio)),
       sizeConstraints: BoxConstraints.tightFor(width: compacto ? 56 : 64, height: compacto ? 56 : 64),
       extendedSizeConstraints: BoxConstraints(minHeight: compacto ? 48 : 56, minWidth: 48),
-      extendedTextStyle: GoogleFonts.inter(
-        fontSize: compacto ? 15 : 16,
-        fontWeight: FontWeight.w600,
-        color: Colors.white,
-      ),
-      iconSize: compacto ? 22 : 24,
+      extendedTextStyle: VirtusTexto.titulo(size: compacto ? 15 : 16, color: Colors.white),
+      iconSize: VirtusIcono.medio,
     ),
     navigationBarTheme: NavigationBarThemeData(
       height: compacto ? 64 : 72,
-      backgroundColor: Virtus.marino,
-      indicatorColor: Virtus.accion.withValues(alpha: 0.4),
+      backgroundColor: Virtus.superficie,
+      indicatorColor: Virtus.marcaSuave,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith(
         (s) => IconThemeData(
-          size: compacto ? 22 : 24,
-          color: s.contains(WidgetState.selected) ? Colors.white : Colors.white70,
+          size: VirtusIcono.nav,
+          color: s.contains(WidgetState.selected) ? Virtus.marca : Virtus.textoSecundario,
         ),
       ),
       labelTextStyle: WidgetStateProperty.resolveWith(
-        (s) => GoogleFonts.inter(
-          fontSize: compacto ? 11 : 12,
-          fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w300,
-          color: s.contains(WidgetState.selected) ? Colors.white : Colors.white70,
-        ),
+        (s) => VirtusTexto.tenue(
+          size: compacto ? 11 : 12,
+          color: s.contains(WidgetState.selected) ? Virtus.marca : Virtus.textoSecundario,
+        ).copyWith(fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500),
       ),
     ),
     navigationRailTheme: NavigationRailThemeData(
-      backgroundColor: Virtus.marino,
-      indicatorColor: Virtus.accion.withValues(alpha: 0.4),
-      selectedIconTheme: const IconThemeData(size: 24, color: Colors.white),
-      unselectedIconTheme: const IconThemeData(size: 24, color: Colors.white70),
-      selectedLabelTextStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 12),
-      unselectedLabelTextStyle: GoogleFonts.inter(fontWeight: FontWeight.w300, color: Colors.white70, fontSize: 12),
+      backgroundColor: Virtus.marcaOscura,
+      indicatorColor: Colors.white.withValues(alpha: 0.18),
+      selectedIconTheme: const IconThemeData(size: VirtusIcono.nav, color: Colors.white),
+      unselectedIconTheme: const IconThemeData(size: VirtusIcono.nav, color: Colors.white70),
+      selectedLabelTextStyle: VirtusTexto.titulo(size: 12, color: Colors.white),
+      unselectedLabelTextStyle: VirtusTexto.tenue(size: 12, color: Colors.white70),
       labelType: NavigationRailLabelType.all,
     ),
     listTileTheme: ListTileThemeData(
@@ -307,14 +360,10 @@ ThemeData tema({bool compacto = false}) {
       dense: compacto,
       contentPadding: EdgeInsets.symmetric(horizontal: compacto ? 14 : 16, vertical: compacto ? 0 : 2),
       textColor: Virtus.texto,
-      iconColor: Virtus.marino,
-      titleTextStyle: GoogleFonts.inter(fontSize: compacto ? 15 : 16, fontWeight: FontWeight.w700, color: Virtus.texto),
-      subtitleTextStyle: GoogleFonts.inter(
-        fontSize: compacto ? 13 : 14,
-        fontWeight: FontWeight.w300,
-        color: Virtus.textoSecundario,
-      ),
-      leadingAndTrailingTextStyle: GoogleFonts.inter(fontSize: compacto ? 13 : 14, color: Virtus.texto),
+      iconColor: Virtus.marcaOscura,
+      titleTextStyle: VirtusTexto.titulo(size: compacto ? 15 : 16),
+      subtitleTextStyle: VirtusTexto.tenue(size: compacto ? 13 : 14),
+      leadingAndTrailingTextStyle: VirtusTexto.cuerpo(size: compacto ? 13 : 14),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(Virtus.radioSm),
         side: const BorderSide(color: Virtus.borde),
@@ -333,47 +382,40 @@ ThemeData tema({bool compacto = false}) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(Virtus.radio),
-        borderSide: const BorderSide(color: Virtus.accion, width: 1.5),
+        borderSide: const BorderSide(color: Virtus.marca, width: 1.5),
       ),
       contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: compacto ? 14 : 16),
-      labelStyle: GoogleFonts.inter(
-        fontSize: compacto ? 14 : 15,
-        fontWeight: FontWeight.w300,
-        color: Virtus.textoSecundario,
-      ),
-      hintStyle: GoogleFonts.inter(fontSize: compacto ? 14 : 15, fontWeight: FontWeight.w300, color: Virtus.textoTenue),
+      labelStyle: VirtusTexto.tenue(size: compacto ? 14 : 15),
+      hintStyle: VirtusTexto.tenue(size: compacto ? 14 : 15, color: Virtus.textoTenue),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: Virtus.superficie,
-      selectedColor: Virtus.accionSuave,
+      selectedColor: Virtus.marcaSuave,
       side: const BorderSide(color: Virtus.borde),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Virtus.radioSm)),
-      labelStyle: GoogleFonts.inter(fontSize: compacto ? 13 : 14, fontWeight: FontWeight.w600, color: Virtus.texto),
-      secondaryLabelStyle: GoogleFonts.inter(
-        fontSize: compacto ? 13 : 14,
-        fontWeight: FontWeight.w600,
-        color: Virtus.marino,
-      ),
-      checkmarkColor: Virtus.accion,
+      labelStyle: VirtusTexto.titulo(size: compacto ? 13 : 14),
+      secondaryLabelStyle: VirtusTexto.titulo(size: compacto ? 13 : 14, color: Virtus.marcaOscura),
+      checkmarkColor: Virtus.marca,
       padding: EdgeInsets.symmetric(horizontal: compacto ? 6 : 8, vertical: compacto ? 4 : 6),
+      iconTheme: const IconThemeData(size: VirtusIcono.chip, color: Virtus.marcaOscura),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: SegmentedButton.styleFrom(
         minimumSize: const Size(48, 48),
-        textStyle: GoogleFonts.inter(fontSize: compacto ? 13 : 14, fontWeight: FontWeight.w600),
+        textStyle: VirtusTexto.titulo(size: compacto ? 13 : 14),
         foregroundColor: Virtus.texto,
-        selectedForegroundColor: Virtus.marino,
-        selectedBackgroundColor: Virtus.accionSuave,
+        selectedForegroundColor: Virtus.marcaOscura,
+        selectedBackgroundColor: Virtus.marcaSuave,
         side: const BorderSide(color: Virtus.borde),
       ),
     ),
     tabBarTheme: TabBarThemeData(
-      labelColor: Virtus.accion,
+      labelColor: Virtus.marca,
       unselectedLabelColor: Virtus.textoSecundario,
-      indicatorColor: Virtus.accion,
+      indicatorColor: Virtus.marca,
       indicatorSize: TabBarIndicatorSize.label,
-      labelStyle: GoogleFonts.inter(fontSize: compacto ? 14 : 15, fontWeight: FontWeight.w700),
-      unselectedLabelStyle: GoogleFonts.inter(fontSize: compacto ? 14 : 15, fontWeight: FontWeight.w300),
+      labelStyle: VirtusTexto.titulo(size: compacto ? 14 : 15),
+      unselectedLabelStyle: VirtusTexto.cuerpo(size: compacto ? 14 : 15),
     ),
     cardTheme: CardThemeData(
       color: Virtus.superficie,
@@ -403,13 +445,8 @@ ThemeData tema({bool compacto = false}) {
         borderRadius: BorderRadius.circular(Virtus.radio),
         side: const BorderSide(color: Virtus.borde),
       ),
-      titleTextStyle: GoogleFonts.inter(fontSize: compacto ? 18 : 20, fontWeight: FontWeight.w800, color: Virtus.texto),
-      contentTextStyle: GoogleFonts.inter(
-        fontSize: compacto ? 14 : 15,
-        fontWeight: FontWeight.w300,
-        color: Virtus.textoSecundario,
-        height: 1.4,
-      ),
+      titleTextStyle: VirtusTexto.importante(size: compacto ? 18 : 20),
+      contentTextStyle: VirtusTexto.tenue(size: compacto ? 14 : 15).copyWith(height: 1.4),
     ),
     popupMenuTheme: PopupMenuThemeData(
       color: Virtus.superficie,
@@ -419,19 +456,19 @@ ThemeData tema({bool compacto = false}) {
         borderRadius: BorderRadius.circular(Virtus.radioSm),
         side: const BorderSide(color: Virtus.borde),
       ),
-      textStyle: GoogleFonts.inter(fontSize: 14, color: Virtus.texto),
+      textStyle: VirtusTexto.cuerpo(size: 14),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: Virtus.marino,
-      contentTextStyle: GoogleFonts.inter(fontSize: 14, color: Colors.white),
+      backgroundColor: Virtus.marcaOscura,
+      contentTextStyle: VirtusTexto.cuerpo(size: 14, color: Colors.white),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Virtus.radioSm)),
     ),
     dividerTheme: const DividerThemeData(color: Virtus.separador, thickness: 1, space: 1),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: Virtus.accion,
-      linearTrackColor: Virtus.separador,
-      circularTrackColor: Virtus.separador,
+      color: Virtus.marca,
+      linearTrackColor: Color(0xFFEDE7E1),
+      circularTrackColor: Color(0xFFEDE7E1),
     ),
     badgeTheme: const BadgeThemeData(backgroundColor: Virtus.error, textColor: Colors.white),
   );
